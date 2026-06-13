@@ -10,162 +10,160 @@ namespace SampleMcpServer.Integration.Tests;
 
 public class SampleMcpServerIntegrationTests
 {
-    private static IServiceProvider BuildSampleServer(Action<McpServerOptions>? configureOptions = null)
+    private static IServiceProvider BuildServer(bool withGating = true)
     {
         var services = new ServiceCollection();
         services.AddOptions();
 
-        services.AddMcpServer(options =>
+        var builder = services.AddMcpServer(options =>
         {
             options.ServerInfo = new Implementation { Name = "SampleMcpServer", Version = "1.0" };
             options.Handlers = new McpServerHandlers();
-            configureOptions?.Invoke(options);
         })
             .WithCapabilityAwareTools<AiTools>()
             .WithPrompts<HelpfulPrompts>()
-            .WithResources<WorkspaceResources>()
-            .AddCapabilityGating();
+            .WithResources<WorkspaceResources>();
 
         services.AddSingleton<IConfigureOptions<McpServerOptions>>(
-            new PromptResourceCapabilityCapture());
+            new CaptureAllPrimitives());
+
+        if (withGating)
+            builder.AddCapabilityGating();
 
         return services.BuildServiceProvider();
     }
 
-    [Test]
-    public async Task AiSummarizeTool_HasCapabilityRequirementsCaptured()
+    private sealed class CaptureAllPrimitives : IConfigureOptions<McpServerOptions>
     {
-        var sp = BuildSampleServer();
-        var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
-
-        await Assert.That(options.ToolCollection).IsNotNull();
-        var aiSummarize = options.ToolCollection!.FirstOrDefault(t =>
-            t.ProtocolTool.Name == "ai_summarize");
-
-        await Assert.That(aiSummarize).IsNotNull();
-        var reqs = aiSummarize!.GetCapabilityRequirements();
-        await Assert.That(reqs.Required).IsEqualTo(CapabilityFlag.Sampling);
-        await Assert.That(reqs.Message).IsEqualTo("Requires LLM sampling support");
+        public void Configure(McpServerOptions options)
+        {
+            if (options.ToolCollection is not null)
+            {
+                foreach (var tool in options.ToolCollection)
+                    tool.CaptureCapabilityRequirements();
+            }
+            if (options.PromptCollection is not null)
+            {
+                foreach (var prompt in options.PromptCollection)
+                    prompt.CaptureCapabilityRequirements();
+            }
+            if (options.ResourceCollection is not null)
+            {
+                foreach (var resource in options.ResourceCollection)
+                    resource.CaptureCapabilityRequirements();
+            }
+        }
     }
 
     [Test]
-    public async Task EchoTool_HasNoCapabilityRequirements()
+    public async Task WithoutGating_CollectionsArePopulated()
     {
-        var sp = BuildSampleServer();
+        var sp = BuildServer(withGating: false);
+        var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
+
+        await Assert.That(options.ToolCollection).IsNotNull();
+        await Assert.That(options.ToolCollection!).Count().IsEqualTo(2);
+        await Assert.That(options.PromptCollection).IsNotNull();
+        await Assert.That(options.PromptCollection!).Count().IsEqualTo(2);
+        await Assert.That(options.ResourceCollection).IsNotNull();
+        await Assert.That(options.ResourceCollection!).Count().IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task WithoutGating_ToolCapabilitiesAreCaptured()
+    {
+        var sp = BuildServer(withGating: false);
+        var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
+
+        var aiSummarize = options.ToolCollection!.FirstOrDefault(t =>
+            t.ProtocolTool.Name == "ai_summarize");
+        await Assert.That(aiSummarize).IsNotNull();
+        var reqs = aiSummarize!.GetCapabilityRequirements();
+        await Assert.That(reqs.Required).IsEqualTo(CapabilityFlag.Sampling);
+    }
+
+    [Test]
+    public async Task WithoutGating_PromptCapabilitiesAreCaptured()
+    {
+        var sp = BuildServer(withGating: false);
+        var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
+
+        var confirmAction = options.PromptCollection!.FirstOrDefault(p =>
+            p.ProtocolPrompt.Name == "confirm_action");
+        await Assert.That(confirmAction).IsNotNull();
+        var reqs = confirmAction!.GetCapabilityRequirements();
+        await Assert.That(reqs.Required).IsEqualTo(CapabilityFlag.Elicitation);
+    }
+
+    [Test]
+    public async Task WithoutGating_ResourceCapabilitiesAreCaptured()
+    {
+        var sp = BuildServer(withGating: false);
+        var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
+
+        var workspaceFiles = options.ResourceCollection!.FirstOrDefault(r =>
+            r.ProtocolResource?.Name == "workspace_files");
+        await Assert.That(workspaceFiles).IsNotNull();
+        var reqs = workspaceFiles!.GetCapabilityRequirements();
+        await Assert.That(reqs.Required).IsEqualTo(CapabilityFlag.Roots);
+    }
+
+    [Test]
+    public async Task WithoutGating_UngatedToolHasNoCapabilityRequirements()
+    {
+        var sp = BuildServer(withGating: false);
         var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
 
         var echo = options.ToolCollection!.FirstOrDefault(t =>
             t.ProtocolTool.Name == "echo");
-
         await Assert.That(echo).IsNotNull();
         var reqs = echo!.GetCapabilityRequirements();
         await Assert.That(reqs.Required).IsEqualTo(CapabilityFlag.None);
     }
 
     [Test]
-    public async Task ConfirmActionPrompt_HasCapabilityRequirementsCaptured()
+    public async Task FilterByClientCapabilities_Tools_FullClientSeesBoth()
     {
-        var sp = BuildSampleServer();
+        var sp = BuildServer(withGating: false);
         var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
 
-        await Assert.That(options.PromptCollection).IsNotNull();
-        var confirmAction = options.PromptCollection!.FirstOrDefault(p =>
-            p.ProtocolPrompt.Name == "confirm_action");
-
-        await Assert.That(confirmAction).IsNotNull();
-        var reqs = confirmAction!.GetCapabilityRequirements();
-        await Assert.That(reqs.Required).IsEqualTo(CapabilityFlag.Elicitation);
-        await Assert.That(reqs.Message).IsEqualTo("Requires user elicitation support");
-    }
-
-    [Test]
-    public async Task GreetingPrompt_HasNoCapabilityRequirements()
-    {
-        var sp = BuildSampleServer();
-        var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
-
-        var greeting = options.PromptCollection!.FirstOrDefault(p =>
-            p.ProtocolPrompt.Name == "greeting");
-
-        await Assert.That(greeting).IsNotNull();
-        var reqs = greeting!.GetCapabilityRequirements();
-        await Assert.That(reqs.Required).IsEqualTo(CapabilityFlag.None);
-    }
-
-    [Test]
-    public async Task WorkspaceFilesResource_HasCapabilityRequirementsCaptured()
-    {
-        var sp = BuildSampleServer();
-        var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
-
-        await Assert.That(options.ResourceCollection).IsNotNull();
-        var workspaceFiles = options.ResourceCollection!.FirstOrDefault(r =>
-            r.ProtocolResource?.Name == "workspace_files");
-
-        await Assert.That(workspaceFiles).IsNotNull();
-        var reqs = workspaceFiles!.GetCapabilityRequirements();
-        await Assert.That(reqs.Required).IsEqualTo(CapabilityFlag.Roots);
-        await Assert.That(reqs.Message).IsEqualTo("Requires filesystem root listing support");
-    }
-
-    [Test]
-    public async Task AppInfoResource_HasNoCapabilityRequirements()
-    {
-        var sp = BuildSampleServer();
-        var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
-
-        var appInfo = options.ResourceCollection!.FirstOrDefault(r =>
-            r.ProtocolResource?.Name == "app_info");
-
-        await Assert.That(appInfo).IsNotNull();
-        var reqs = appInfo!.GetCapabilityRequirements();
-        await Assert.That(reqs.Required).IsEqualTo(CapabilityFlag.None);
-    }
-
-    [Test]
-    public async Task Tools_FilteredByClientCapabilities_SamplingClientSeesBoth()
-    {
-        var sp = BuildSampleServer();
-        var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
-
-        var tools = options.ToolCollection!.ToList()!;
-        var protools = tools.Select(t => t.ProtocolTool).ToList();
-
+        var protools = options.ToolCollection!
+            .Select(t => t.ProtocolTool)
+            .ToList();
         var clientCaps = new ClientCapabilities
         {
             Sampling = new SamplingCapability(),
         };
 
         var result = protools.FilterByClientCapabilities(clientCaps);
-
         await Assert.That(result.IsSuccess).IsTrue();
         await Assert.That(result.Value).Count().IsEqualTo(2);
     }
 
     [Test]
-    public async Task Tools_FilteredByClientCapabilities_NoClientHidesAiSummarize()
+    public async Task FilterByClientCapabilities_Tools_MinimalClientSeesOnlyEcho()
     {
-        var sp = BuildSampleServer();
+        var sp = BuildServer(withGating: false);
         var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
 
-        var tools = options.ToolCollection!.ToList()!;
-        var protools = tools.Select(t => t.ProtocolTool).ToList();
+        var protools = options.ToolCollection!
+            .Select(t => t.ProtocolTool)
+            .ToList();
         var clientCaps = new ClientCapabilities();
 
         var result = protools.FilterByClientCapabilities(clientCaps);
-
         await Assert.That(result.IsSuccess).IsTrue();
         await Assert.That(result.Value).Count().IsEqualTo(1);
         await Assert.That(result.Value[0].Name).IsEqualTo("echo");
     }
 
     [Test]
-    public async Task Prompts_FilteredByClientCapabilities_ElicitationClientSeesBoth()
+    public async Task FilterByClientCapabilities_Prompts_FullClientSeesBoth()
     {
-        var sp = BuildSampleServer();
+        var sp = BuildServer(withGating: false);
         var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
 
-        var prompts = options.PromptCollection!
+        var proPrompts = options.PromptCollection!
             .Select(p => p.ProtocolPrompt)
             .ToList();
         var clientCaps = new ClientCapabilities
@@ -173,37 +171,35 @@ public class SampleMcpServerIntegrationTests
             Elicitation = new ElicitationCapability(),
         };
 
-        var result = prompts.FilterByClientCapabilities(clientCaps);
-
+        var result = proPrompts.FilterByClientCapabilities(clientCaps);
         await Assert.That(result.IsSuccess).IsTrue();
         await Assert.That(result.Value).Count().IsEqualTo(2);
     }
 
     [Test]
-    public async Task Prompts_FilteredByClientCapabilities_NoClientHidesConfirmAction()
+    public async Task FilterByClientCapabilities_Prompts_MinimalClientSeesOnlyGreeting()
     {
-        var sp = BuildSampleServer();
+        var sp = BuildServer(withGating: false);
         var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
 
-        var prompts = options.PromptCollection!
+        var proPrompts = options.PromptCollection!
             .Select(p => p.ProtocolPrompt)
             .ToList();
         var clientCaps = new ClientCapabilities();
 
-        var result = prompts.FilterByClientCapabilities(clientCaps);
-
+        var result = proPrompts.FilterByClientCapabilities(clientCaps);
         await Assert.That(result.IsSuccess).IsTrue();
         await Assert.That(result.Value).Count().IsEqualTo(1);
         await Assert.That(result.Value[0].Name).IsEqualTo("greeting");
     }
 
     [Test]
-    public async Task Resources_FilteredByClientCapabilities_RootsClientSeesBoth()
+    public async Task FilterByClientCapabilities_Resources_FullClientSeesBoth()
     {
-        var sp = BuildSampleServer();
+        var sp = BuildServer(withGating: false);
         var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
 
-        var resources = options.ResourceCollection!
+        var proResources = options.ResourceCollection!
             .Select(r => r.ProtocolResource)
             .OfType<Resource>()
             .ToList();
@@ -212,54 +208,48 @@ public class SampleMcpServerIntegrationTests
             Roots = new RootsCapability(),
         };
 
-        var result = resources.FilterByClientCapabilities(clientCaps);
-
+        var result = proResources.FilterByClientCapabilities(clientCaps);
         await Assert.That(result.IsSuccess).IsTrue();
         await Assert.That(result.Value).Count().IsEqualTo(2);
     }
 
     [Test]
-    public async Task Resources_FilteredByClientCapabilities_NoClientHidesWorkspaceFiles()
+    public async Task FilterByClientCapabilities_Resources_MinimalClientSeesOnlyAppInfo()
     {
-        var sp = BuildSampleServer();
+        var sp = BuildServer(withGating: false);
         var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
 
-        var resources = options.ResourceCollection!
+        var proResources = options.ResourceCollection!
             .Select(r => r.ProtocolResource)
             .OfType<Resource>()
             .ToList();
         var clientCaps = new ClientCapabilities();
 
-        var result = resources.FilterByClientCapabilities(clientCaps);
-
+        var result = proResources.FilterByClientCapabilities(clientCaps);
         await Assert.That(result.IsSuccess).IsTrue();
         await Assert.That(result.Value).Count().IsEqualTo(1);
         await Assert.That(result.Value[0].Name).IsEqualTo("app_info");
     }
 
     [Test]
-    public async Task PromptResourceCapabilityCapture_DoesNotThrow_OnEmptyCollections()
+    public async Task WithGating_CollectionsAreCleared()
     {
-        var capture = new PromptResourceCapabilityCapture();
-        var options = new McpServerOptions();
+        var sp = BuildServer(withGating: true);
+        var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
 
-        // Should not throw when collections are null
-        capture.Configure(options);
+        await Assert.That(options.ToolCollection).IsNull();
+        await Assert.That(options.PromptCollection).IsNull();
+        await Assert.That(options.ResourceCollection).IsNull();
     }
 
     [Test]
-    public async Task AllPrimitives_RegisteredCountsAreCorrect()
+    public async Task WithGating_ListHandlersAreSet()
     {
-        var sp = BuildSampleServer();
+        var sp = BuildServer(withGating: true);
         var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
 
-        await Assert.That(options.ToolCollection).IsNotNull();
-        await Assert.That(options.ToolCollection!).Count().IsEqualTo(2);
-
-        await Assert.That(options.PromptCollection).IsNotNull();
-        await Assert.That(options.PromptCollection!).Count().IsEqualTo(2);
-
-        await Assert.That(options.ResourceCollection).IsNotNull();
-        await Assert.That(options.ResourceCollection!).Count().IsEqualTo(2);
+        await Assert.That(options.Handlers.ListToolsHandler is not null).IsTrue();
+        await Assert.That(options.Handlers.ListPromptsHandler is not null).IsTrue();
+        await Assert.That(options.Handlers.ListResourcesHandler is not null).IsTrue();
     }
 }

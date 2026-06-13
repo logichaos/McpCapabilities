@@ -1,7 +1,6 @@
 using McpCapabilities.Server;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using SampleMcpServer;
@@ -26,30 +25,5 @@ builder.Services.AddMcpServer(options =>
     .AddCapabilityGating()
     .WithStdioServerTransport();
 
-builder.Services.AddSingleton<IConfigureOptions<McpServerOptions>>(
-    new PromptResourceCapabilityCapture());
-
 var app = builder.Build();
 await app.RunAsync();
-
-public sealed class PromptResourceCapabilityCapture : IConfigureOptions<McpServerOptions>
-{
-    public void Configure(McpServerOptions options)
-    {
-        if (options.PromptCollection is not null)
-        {
-            foreach (var prompt in options.PromptCollection)
-            {
-                prompt.CaptureCapabilityRequirements();
-            }
-        }
-
-        if (options.ResourceCollection is not null)
-        {
-            foreach (var resource in options.ResourceCollection)
-            {
-                resource.CaptureCapabilityRequirements();
-            }
-        }
-    }
-}

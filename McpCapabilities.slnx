@@ -1,4 +1,5 @@
 <Solution>
+  <Project Path="samples/SampleMcpClient/SampleMcpClient.csproj" />
   <Project Path="samples/SampleMcpServer/SampleMcpServer.csproj" />
   <Project Path="src/McpCapabilities.Server/McpCapabilities.Server.csproj" />
   <Project Path="tests/SampleMcpServer.Integration.Tests/SampleMcpServer.Integration.Tests.csproj" />
