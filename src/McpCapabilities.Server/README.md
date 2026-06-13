@@ -169,10 +169,10 @@ The check `(available & required) == required` ensures the client has *every* fl
 stateDiagram-v2
     [*] --> Annotated: "Developer adds <br/> [RequiredClientCapabilities]"
     Annotated --> Captured: WithCapabilityAwareTools()
-    Captured --> Stored: Requirements written to Protocol*.Meta
+    Captured --> Stored: "Requirements written to <br/> Protocol*.Meta"
     Stored --> Filtered: Client requests list
-    Filtered --> Visible: Client has required capabilities
-    Filtered --> Hidden: Client lacks required capabilities
+    Filtered --> Visible: Client has required <br/> capabilities
+    Filtered --> Hidden: Client lacks required <br/ > capabilities
     Visible --> [*]
     Hidden --> [*]
 ```

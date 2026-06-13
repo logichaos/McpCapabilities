@@ -51,6 +51,26 @@ McpCapabilities/
     └── McpCapabilities.Server.Integration.Tests/   # Tests with real MCP transport and DI wiring
         ├── McpCapabilities.Server.Integration.Tests.csproj
         └── CapabilityGatingIntegrationTests.cs
+│
+├── tests/
+│   ├── SampleMcpServer.Unit.Tests/               # Sample server unit tests (attribute verification)
+│   │   ├── SampleMcpServer.Unit.Tests.csproj
+│   │   ├── SampleServerAiToolsTests.cs
+│   │   ├── SampleServerHelpfulPromptsTests.cs
+│   │   └── SampleServerWorkspaceResourcesTests.cs
+│   │
+│   └── SampleMcpServer.Integration.Tests/        # Sample server integration tests (pipeline + filtering)
+│       ├── SampleMcpServer.Integration.Tests.csproj
+│       └── SampleMcpServerIntegrationTests.cs
+│
+└── samples/
+    └── SampleMcpServer/             # Runnable sample MCP server
+        ├── SampleMcpServer.csproj
+        ├── README.md                  # Sample documentation
+        ├── Program.cs                 # Hosting pipeline with DI setup
+        ├── AiTools.cs                 # Capability-gated and ungated tools
+        ├── HelpfulPrompts.cs          # Capability-gated and ungated prompts
+        └── WorkspaceResources.cs      # Capability-gated and ungated resources
 ```
 
 ## Development Workflow
@@ -85,7 +105,13 @@ dotnet test tests/McpCapabilities.Server.Integration.Tests/
 
 Tests use [TUnit](https://thomhurst.github.io/TUnit/) as the test framework (configured in `global.json` with `Microsoft.Testing.Platform`).
 
-### 4. Code coverage
+### 4. Run the sample server
+
+```bash
+dotnet run --project samples/SampleMcpServer/
+```
+
+### 5. Code coverage
 
 ```bash
 # Collect coverage (outputs coverage XML)
