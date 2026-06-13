@@ -9,9 +9,7 @@
 3. **Write the minimum implementation to make the test pass.** Green phase — no more, no less.
 4. **Refactor.** Clean up both test and production code without changing behavior.
 
-Tests live under `tests/`:
-- `tests/McpCapabilities.Server.Unit.Tests/` — fast, isolated unit tests (no I/O, no network).
-- `tests/McpCapabilities.Server.Integration.Tests/` — tests that exercise real MCP transport, I/O, or external dependencies.
+Tests live under `tests/`
 
 ### What qualifies as a test?
 
