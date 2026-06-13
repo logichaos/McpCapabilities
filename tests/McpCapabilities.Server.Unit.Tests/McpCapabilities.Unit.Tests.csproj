@@ -7,6 +7,17 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="FluentResults" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="ModelContextProtocol" />
     <PackageReference Include="TUnit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/McpCapabilities.Server/McpCapabilities.Server.csproj" />
+  </ItemGroup>
+    
+  <ItemGroup>
+    <Using Include="TUnit" />
   </ItemGroup>
 </Project>

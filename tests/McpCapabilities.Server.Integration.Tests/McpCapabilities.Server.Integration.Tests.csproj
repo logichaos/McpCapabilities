@@ -5,10 +5,17 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <OutputType>Exe</OutputType>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="FluentResults" />
+    <PackageReference Include="ModelContextProtocol" />
     <PackageReference Include="TUnit.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/McpCapabilities.Server/McpCapabilities.Server.csproj" />
   </ItemGroup>
 
   <ItemGroup>

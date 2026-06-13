@@ -3,6 +3,6 @@
   <PropertyGroup>
 
     <ArtifactsPath>$(MSBuildThisFileDirectory)artifacts</ArtifactsPath>
-
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 </Project>
