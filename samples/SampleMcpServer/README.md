@@ -29,16 +29,47 @@ dotnet build
 
 ## Run
 
+The server supports three transport modes, configurable via `appsettings.json`:
+
+```json
+{
+  "MCP": {
+    "Transport": "stdio"  // "stdio", "http", or "both"
+  }
+}
+```
+
+### stdio mode (default)
+
 ```bash
 dotnet run
 ```
 
 The server listens on stdio. Connect with any MCP-compatible client (Claude Desktop, VS Code, etc.).
 
+### http mode
+
+Set `"Transport": "http"` in `appsettings.json`, then:
+
+```bash
+dotnet run
+```
+
+The server starts an HTTP listener. Connect via HTTP MCP clients at the configured port.
+
+### both mode
+
+Set `"Transport": "both"` in `appsettings.json`, then:
+
+```bash
+dotnet run
+```
+
+The server listens on both stdio and HTTP simultaneously. A background task handles stdio while the web host handles HTTP.
+
 ## How it works
 
 1. `[RequiredClientCapabilities]` attributes are placed on tool/prompt/resource methods.
 2. `WithCapabilityAwareTools<T>()` captures tool capability requirements at registration time.
-3. A post-configure options class captures prompt and resource capability requirements.
-4. `AddCapabilityGating()` wraps the list handlers to filter primitives based on the connected client's `ClientCapabilities`.
-5. When a client connects without required capabilities, gated primitives are silently hidden.
+3. `AddCapabilityGating()` captures all primitive requirements, builds filtered handlers, and enables request-time filtering based on the connected client's `ClientCapabilities`.
+4. When a client connects without required capabilities, gated primitives are silently hidden.

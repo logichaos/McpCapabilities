@@ -25,6 +25,7 @@
               <Exclude>
                 <Source>.*\\artifacts\\obj\\.*</Source>
                 <Source>.*\\tests\\.*</Source>
+                <Source>.*\\samples\\.*</Source>
                 <Source>.*\\**\\Program.cs</Source>
               </Exclude>
             </Sources>

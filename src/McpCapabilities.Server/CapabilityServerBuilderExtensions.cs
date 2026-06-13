@@ -1,6 +1,7 @@
 using McpCapabilities.Server;
-using Microsoft.Extensions.DependencyInjection;
+
 using Microsoft.Extensions.Options;
+
 using ModelContextProtocol.Server;
 
 namespace Microsoft.Extensions.DependencyInjection;

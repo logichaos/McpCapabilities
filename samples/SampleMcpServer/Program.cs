@@ -1,13 +1,16 @@
-using McpCapabilities.Server;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
+
 using ModelContextProtocol.Protocol;
-using ModelContextProtocol.Server;
+
 using SampleMcpServer;
 
-var builder = Host.CreateApplicationBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddMcpServer(options =>
+var transport = builder.Configuration.GetValue<string>("MCP:Transport") ?? "stdio";
+var isHttp = transport is "http" or "both";
+var isStdio = transport is "stdio" or "both";
+
+var mcpBuilder = builder.Services.AddMcpServer(options =>
 {
     options.ServerInfo = new Implementation
     {
@@ -22,8 +25,17 @@ builder.Services.AddMcpServer(options =>
     .WithCapabilityAwareTools<AiTools>()
     .WithPrompts<HelpfulPrompts>()
     .WithResources<WorkspaceResources>()
-    .AddCapabilityGating()
-    .WithStdioServerTransport();
+    .AddCapabilityGating();
+
+if (isStdio)
+    mcpBuilder.WithStdioServerTransport();
+
+if (isHttp)
+    mcpBuilder.WithHttpTransport();
 
 var app = builder.Build();
+
+if (isHttp)
+    app.MapMcp();
+
 await app.RunAsync();

@@ -24,6 +24,12 @@ Tests live under `tests/`
 - Tests must be independent. No test may depend on the side effects or state left by another test.
 - Test names should describe the scenario and expected outcome: `MethodName_Scenario_ExpectedBehavior`.
 
+### Minimal Comments Mandata
+
+- only add comments when they are absolutely necessary
+- code should be self-documenting
+  - use meaningful names for everything
+
 ---
 
 ## Quality Gates (Post-Implementation)
