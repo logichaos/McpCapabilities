@@ -1,7 +1,7 @@
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 
-var serverUrl = args.Length > 0 ? args[0] : "https://localhost:5001";
+var serverUrl = args.Length > 0 ? args[0] : "https://localhost:5000";
 
 Console.WriteLine("=== MCP HTTP Sample Client ===");
 Console.WriteLine($"Server URL: {serverUrl}");

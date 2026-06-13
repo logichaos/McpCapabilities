@@ -26,7 +26,6 @@ var mcpBuilder = builder.Services.AddMcpServer(options =>
     .WithPrompts<HelpfulPrompts>()
     .WithResources<WorkspaceResources>()
     .AddCapabilityGating();
-
 if (isStdio)
     mcpBuilder.WithStdioServerTransport();
 
@@ -34,6 +33,7 @@ if (isHttp)
     mcpBuilder.WithHttpTransport();
 
 var app = builder.Build();
+var env = app.Environment.EnvironmentName;
 
 if (isHttp)
     app.MapMcp();

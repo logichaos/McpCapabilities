@@ -1,0 +1,24 @@
+{
+  "profiles": {
+    "stdio": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Stdio"
+      }
+    },
+    "http": {
+      "commandName": "Project",
+      "applicationUrl": "https://localhost:5000",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Http"
+      }
+    },
+    "both": {
+      "commandName": "Project",
+      "applicationUrl": "https://localhost:5000",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Both"
+      }
+    }
+  }
+}
