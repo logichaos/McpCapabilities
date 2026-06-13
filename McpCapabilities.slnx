@@ -1,2 +1,8 @@
 <Solution>
+  <Folder Name="/tests/">
+    <Project Path="tests/McpCapabilities.Server.Integration.Tests/McpCapabilities.Server.Integration.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/McpCapabilities.Server.Unit.Tests/">
+    <Project Path="tests/McpCapabilities.Server.Unit.Tests/McpCapabilities.Unit.Tests.csproj" />
+  </Folder>
 </Solution>
