@@ -1,0 +1,41 @@
+<div style="display:flex;flex-direction:column;gap:4px">
+  @foreach (var param in Parameters)
+  {
+    <div>
+      <label style="font-weight:600">@param.Name@(param.Required ? " *" : "")</label>
+      @if (!string.IsNullOrEmpty(param.Description) || (param.Type != "any" && !string.IsNullOrEmpty(param.Type)))
+      {
+        <span style="color:#888"> (@param.Type)@(string.IsNullOrEmpty(param.Description) ? "" : $": {param.Description}")</span>
+      }
+      <input value="@GetValue(param.Name)"
+             @oninput="(e) => SetValue(param.Name, e.Value?.ToString() ?? string.Empty)"
+             placeholder="@(param.Type == "number" ? "0" : "value")" style="width:160px;margin-left:4px" />
+    </div>
+  }
+</div>
+
+@code {
+  [Parameter, EditorRequired]
+  public IReadOnlyList<ArgumentDef> Parameters { get; set; } = default!;
+
+  private readonly Dictionary<string, string> _values = new();
+
+  public Dictionary<string, object?> GetArguments()
+  {
+    var result = new Dictionary<string, object?>();
+    foreach (var param in Parameters)
+    {
+      if (_values.TryGetValue(param.Name, out var val) && !string.IsNullOrWhiteSpace(val))
+      {
+        result[param.Name] = param.Type == "number" && double.TryParse(val, out var n) ? n : val;
+      }
+    }
+    return result;
+  }
+
+  private string GetValue(string name) =>
+      _values.TryGetValue(name, out var v) ? v : "";
+
+  private void SetValue(string name, string value) =>
+      _values[name] = value;
+}

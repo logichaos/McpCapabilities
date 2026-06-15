@@ -1,0 +1,61 @@
+@using ModelContextProtocol.Client
+@using ModelContextProtocol.Protocol
+
+<h2>Resources</h2>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Description</th>
+      <th>URI</th>
+      <th>MIME</th>
+      <th>Read</th>
+      <th>Result</th>
+    </tr>
+  </thead>
+  <tbody>
+    @foreach (var resource in Resources)
+    {
+      <tr>
+        <td>@resource.Name</td>
+        <td>@resource.Description</td>
+        <td style="font-size:0.85em">@resource.Uri</td>
+        <td>@resource.MimeType</td>
+        <td><button class="btn btn-primary" @onclick="() => ReadResource(resource)">Read</button></td>
+        <td style="max-width:300px;word-break:break-all"><pre>@(_results.GetValueOrDefault(resource.Uri))</pre></td>
+      </tr>
+    }
+  </tbody>
+</table>
+
+@code {
+  [Parameter, EditorRequired]
+  public McpClient Client { get; set; } = default!;
+
+  [Parameter, EditorRequired]
+  public IList<McpClientResource> Resources { get; set; } = default!;
+
+  private Dictionary<string, string> _results = new();
+
+  protected override void OnParametersSet()
+  {
+    foreach (var resource in Resources)
+      _results.TryAdd(resource.Uri, "");
+  }
+
+  private async Task ReadResource(McpClientResource resource)
+  {
+    try
+    {
+      var result = await resource.ReadAsync();
+      var texts = result.Contents
+          .Select(c => c is TextResourceContents t ? t.Text : $"[{c.MimeType}]");
+      _results[resource.Uri] = string.Join("\n", texts);
+    }
+    catch (Exception ex)
+    {
+      _results[resource.Uri] = $"Error: {ex.Message}";
+    }
+  }
+}

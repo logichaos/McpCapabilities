@@ -1,0 +1,77 @@
+@using ModelContextProtocol.Client
+@using ModelContextProtocol.Protocol
+
+<h2>Prompts</h2>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Description</th>
+      <th>Arguments</th>
+      <th>Call</th>
+      <th>Result</th>
+    </tr>
+  </thead>
+  <tbody>
+    @foreach (var prompt in Prompts)
+    {
+      _promptParamDefs[prompt.Name] = prompt.ProtocolPrompt.Arguments is { Count: > 0 } args
+          ? args.Select(a => new ArgumentDef(a.Name, a.Description, "string", a.Required == true)).ToList()
+          : new();
+      <tr>
+        <td>@prompt.Name</td>
+        <td>@prompt.Description</td>
+        <td style="font-size:0.85em">
+          @if (_promptParamDefs[prompt.Name].Count > 0)
+          {
+            <ArgumentInput @ref="@_promptArgInputs[prompt.Name]" Parameters="_promptParamDefs[prompt.Name]" />
+          }
+          else
+          {
+            <span class="text-muted">none</span>
+          }
+        </td>
+        <td><button class="btn btn-primary" @onclick="() => GetPrompt(prompt)">Get</button></td>
+        <td style="max-width:300px;word-break:break-all"><pre>@(_results.GetValueOrDefault(prompt.Name))</pre></td>
+      </tr>
+    }
+  </tbody>
+</table>
+
+@code {
+  [Parameter, EditorRequired]
+  public McpClient Client { get; set; } = default!;
+
+  [Parameter, EditorRequired]
+  public IList<McpClientPrompt> Prompts { get; set; } = default!;
+
+  private Dictionary<string, ArgumentInput> _promptArgInputs = new();
+  private Dictionary<string, List<ArgumentDef>> _promptParamDefs = new();
+  private Dictionary<string, string> _results = new();
+
+  protected override void OnParametersSet()
+  {
+    foreach (var prompt in Prompts)
+      _results.TryAdd(prompt.Name, "");
+  }
+
+  private async Task GetPrompt(McpClientPrompt prompt)
+  {
+    var args = _promptArgInputs.TryGetValue(prompt.Name, out var argInput)
+        ? argInput.GetArguments()
+        : new Dictionary<string, object?>();
+
+    try
+    {
+      var result = await prompt.GetAsync(args);
+      var texts = result.Messages
+          .Select(m => $"[{m.Role}] {(m.Content is TextContentBlock t ? t.Text : m.Content?.ToString() ?? "")}");
+      _results[prompt.Name] = string.Join("\n", texts);
+    }
+    catch (Exception ex)
+    {
+      _results[prompt.Name] = $"Error: {ex.Message}";
+    }
+  }
+}

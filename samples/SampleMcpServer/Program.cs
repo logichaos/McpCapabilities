@@ -6,6 +6,17 @@ using SampleMcpServer;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.WithOrigins(builder.Configuration.GetValue<string>("Cors:AllowedOrigins") ?? "https://localhost:7197")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .WithExposedHeaders("Mcp-Session-Id");
+    });
+});
+
 var transport = builder.Configuration.GetValue<string>("MCP:Transport") ?? "stdio";
 var isHttp = transport is "http" or "both";
 var isStdio = transport is "stdio" or "both";
@@ -36,6 +47,9 @@ var app = builder.Build();
 var env = app.Environment.EnvironmentName;
 
 if (isHttp)
+{
+  app.UseCors();
   app.MapMcp();
+}
 
 await app.RunAsync();

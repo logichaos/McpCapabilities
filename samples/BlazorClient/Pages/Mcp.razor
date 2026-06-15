@@ -1,45 +1,67 @@
-@using ModelContextProtocol.Client;
+@using ModelContextProtocol.Client
 @page "/mcp"
 
 <PageTitle>MCP</PageTitle>
 
 <h1>MCP</h1>
 
-<p>Test your mcp stuffz here!</p>
-
 @if (mcpClient == null)
 {
-  <p><em>Loading...</em></p>
+  <p><em>Loading Client...</em></p>
 }
 else
 {
-  <p> Loaded !!!</p>
+  @if (_tools is not null)
+  {
+    <ToolTable Client="mcpClient" Tools="_tools" />
+  }
+  else
+  {
+    <p><em>Loading tools...</em></p>
+  }
+
+  @if (_prompts is not null)
+  {
+    <PromptTable Client="mcpClient" Prompts="_prompts" />
+  }
+  else
+  {
+    <p><em>Loading prompts...</em></p>
+  }
+
+  @if (_resources is not null)
+  {
+    <ResourceTable Client="mcpClient" Resources="_resources" />
+  }
+  else
+  {
+    <p><em>Loading resources...</em></p>
+  }
 }
 
 @code {
   [Inject(Key = "httpTransport")]
-  public IClientTransport? HttpTransport {get; set;}
-  
+  public IClientTransport? HttpTransport { get; set; }
+
   [Inject(Key = "mcpClientOptions")]
   public McpClientOptions? Options { get; set; }
 
   internal McpClient? mcpClient = null;
 
+  internal IList<McpClientTool>? _tools;
+  internal IList<McpClientPrompt>? _prompts;
+  internal IList<McpClientResource>? _resources;
+
   protected override async Task OnInitializedAsync()
   {
-    if(HttpTransport != null && Options != null)
+    if (HttpTransport != null && Options != null)
       mcpClient = await McpClient.CreateAsync(HttpTransport, Options);
 
-  }
+    if (mcpClient is null)
+      return;
 
-  public class WeatherForecast
-  {
-    public DateOnly Date { get; set; }
-
-    public int TemperatureC { get; set; }
-
-    public string? Summary { get; set; }
-
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+    _tools = await mcpClient.ListToolsAsync();
+    _prompts = await mcpClient.ListPromptsAsync();
+    _resources = await mcpClient.ListResourcesAsync();
   }
 }

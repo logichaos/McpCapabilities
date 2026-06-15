@@ -3,6 +3,7 @@ using McpCapabilities.Server;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
+using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
@@ -53,16 +54,15 @@ public static class AddCapabilityGatingExtensions
       McpRequestHandler<ListResourcesRequestParams, ListResourcesResult> listResourcesInner = default!;
 
       // Capture the collections at configure time (they won't change afterward).
-      var toolList = options.ToolCollection
-          ?.Select(t => t.ProtocolTool)
-          .ToList() ?? [];
-      var promptList = options.PromptCollection
-          ?.Select(p => p.ProtocolPrompt)
-          .ToList() ?? [];
-      var resourceList = options.ResourceCollection
-          ?.Select(r => r.ProtocolResource)
+      var serverTools = options.ToolCollection?.ToList() ?? [];
+      var toolList = serverTools.Select(t => t.ProtocolTool).ToList();
+      var serverPrompts = options.PromptCollection?.ToList() ?? [];
+      var promptList = serverPrompts.Select(p => p.ProtocolPrompt).ToList();
+      var serverResources = options.ResourceCollection?.ToList() ?? [];
+      var resourceList = serverResources
+          .Select(r => r.ProtocolResource)
           .OfType<Resource>()
-          .ToList() ?? [];
+          .ToList();
 
       listToolsInner = (_, _) =>
           ValueTask.FromResult(new ListToolsResult { Tools = toolList });
@@ -94,6 +94,68 @@ public static class AddCapabilityGatingExtensions
               ? CombineHandlers(listResourcesInner, existingListResources)
               : listResourcesInner,
           GetClientFlags);
+
+      // Build a CallToolHandler that dispatches to the captured server tools,
+      // since clearing ToolCollection below removes the SDK's default dispatch.
+      var toolLookup = serverTools.ToDictionary(t => t.ProtocolTool.Name);
+      var existingCallTool = options.Handlers.CallToolHandler;
+
+      options.Handlers.CallToolHandler = async (request, ct) =>
+      {
+        if (request.Params?.Name is { } toolName &&
+            toolLookup.TryGetValue(toolName, out var serverTool))
+        {
+          return await serverTool.InvokeAsync(request, ct);
+        }
+
+        if (existingCallTool is not null)
+          return await existingCallTool(request, ct);
+
+        throw new McpProtocolException(
+            $"Unknown tool: '{request.Params?.Name}'",
+            McpErrorCode.InvalidParams);
+      };
+
+      // Build GetPromptHandler and ReadResourceHandler to dispatch to captured
+      // server prompts/resources, since clearing the collections below removes
+      // the SDK's default dispatch.
+      var promptLookup = serverPrompts.ToDictionary(p => p.ProtocolPrompt.Name);
+      var existingGetPrompt = options.Handlers.GetPromptHandler;
+
+      options.Handlers.GetPromptHandler = async (request, ct) =>
+      {
+        if (request.Params?.Name is { } promptName &&
+            promptLookup.TryGetValue(promptName, out var serverPrompt))
+        {
+          return await serverPrompt.GetAsync(request, ct);
+        }
+
+        if (existingGetPrompt is not null)
+          return await existingGetPrompt(request, ct);
+
+        throw new McpProtocolException(
+            $"Unknown prompt: '{request.Params?.Name}'",
+            McpErrorCode.InvalidParams);
+      };
+
+      var resourceLookup = serverResources.ToDictionary(r => r.ProtocolResource?.Uri ?? "");
+      var existingReadResource = options.Handlers.ReadResourceHandler;
+
+      options.Handlers.ReadResourceHandler = async (request, ct) =>
+      {
+        if (request.Params?.Uri is { } uri &&
+            resourceLookup.TryGetValue(uri, out var serverResource))
+        {
+          return await serverResource.ReadAsync(request, ct);
+        }
+
+        if (existingReadResource is not null)
+          return await existingReadResource(request, ct);
+
+        throw new McpProtocolException(
+            $"Unknown resource URI: '{request.Params?.Uri}'",
+            McpErrorCode.InvalidParams);
+      };
 
       // Clear collections so the SDK serves only from our filtered handlers.
       options.ToolCollection = null;

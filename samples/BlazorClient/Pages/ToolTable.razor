@@ -1,0 +1,105 @@
+@using Microsoft.Extensions.AI
+@using ModelContextProtocol.Client
+@using System.Text.Json
+
+<h2>Tools</h2>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Description</th>
+      <th>Parameters</th>
+      <th>Call</th>
+      <th>Result</th>
+    </tr>
+  </thead>
+  <tbody>
+    @foreach (var tool in Tools)
+    {
+      _paramDefs[tool.Name] = GetSchemaProperties(tool.JsonSchema);
+      <tr>
+        <td>@tool.Name</td>
+        <td>@tool.Description</td>
+        <td style="font-size:0.85em">
+          @if (_paramDefs[tool.Name].Count > 0)
+          {
+            <ArgumentInput @ref="@_argInputs[tool.Name]" Parameters="_paramDefs[tool.Name]" />
+          }
+          else
+          {
+            <span class="text-muted">none</span>
+          }
+        </td>
+        <td><button class="btn btn-primary" @onclick="() => InvokeTool(tool)">Call</button></td>
+        <td style="max-width:300px;word-break:break-all"><pre>@(_results.GetValueOrDefault(tool.Name))</pre></td>
+      </tr>
+    }
+  </tbody>
+</table>
+
+@code {
+  [Parameter, EditorRequired]
+  public McpClient Client { get; set; } = default!;
+
+  [Parameter, EditorRequired]
+  public IList<McpClientTool> Tools { get; set; } = default!;
+
+  private Dictionary<string, ArgumentInput> _argInputs = new();
+  private Dictionary<string, List<ArgumentDef>> _paramDefs = new();
+  private Dictionary<string, string> _results = new();
+
+  protected override void OnParametersSet()
+  {
+    foreach (var tool in Tools)
+      _results.TryAdd(tool.Name, "");
+  }
+
+  private async Task InvokeTool(McpClientTool tool)
+  {
+    var args = _argInputs.TryGetValue(tool.Name, out var argInput)
+        ? argInput.GetArguments()
+        : new Dictionary<string, object?>();
+
+    try
+    {
+      var result = await tool.InvokeAsync(new AIFunctionArguments(args));
+      _results[tool.Name] = result?.ToString() ?? "(null)";
+    }
+    catch (Exception ex)
+    {
+      _results[tool.Name] = $"Error: {ex.Message}";
+    }
+  }
+
+  private static List<ArgumentDef> GetSchemaProperties(JsonElement schema)
+  {
+    var result = new List<ArgumentDef>();
+
+    if (schema.ValueKind != JsonValueKind.Object)
+      return result;
+
+    HashSet<string>? required = null;
+    if (schema.TryGetProperty("required", out var req) && req.ValueKind == JsonValueKind.Array)
+      required = req.EnumerateArray().Select(r => r.GetString()!).ToHashSet();
+
+    if (!schema.TryGetProperty("properties", out var props) || props.ValueKind != JsonValueKind.Object)
+      return result;
+
+    foreach (var prop in props.EnumerateObject())
+    {
+      var name = prop.Name;
+      var desc = "";
+      var type = "any";
+
+      if (prop.Value.TryGetProperty("description", out var descEl))
+        desc = descEl.GetString() ?? "";
+      if (prop.Value.TryGetProperty("type", out var typeEl))
+        type = typeEl.GetString() ?? "any";
+
+      result.Add(new ArgumentDef(name, desc, type, required?.Contains(name) == true));
+    }
+
+    return result;
+  }
+}
