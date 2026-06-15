@@ -1,89 +1,90 @@
 using System.Reflection;
+
 using ModelContextProtocol.Server;
 
 namespace McpCapabilities.Server;
 
 public static class McpServerPrimitiveCapabilityExtensions
 {
-    public static void CaptureCapabilityRequirements(this McpServerTool tool)
+  public static void CaptureCapabilityRequirements(this McpServerTool tool)
+  {
+    var methodInfo = tool.Metadata
+        ?.OfType<MethodInfo>()
+        .FirstOrDefault();
+
+    if (methodInfo is null)
+      return;
+
+    var attr = methodInfo.GetCustomAttribute<RequiredClientCapabilitiesAttribute>();
+    if (attr is null)
+      return;
+
+    var reqs = new ClientCapabilityRequirements
     {
-        var methodInfo = tool.Metadata
-            ?.OfType<MethodInfo>()
-            .FirstOrDefault();
+      Required = attr.Required,
+      Message = attr.Message,
+    };
 
-        if (methodInfo is null)
-            return;
+    tool.ProtocolTool.Meta ??= [];
+    reqs.WriteToMeta(tool.ProtocolTool.Meta);
+  }
 
-        var attr = methodInfo.GetCustomAttribute<RequiredClientCapabilitiesAttribute>();
-        if (attr is null)
-            return;
+  public static ClientCapabilityRequirements GetCapabilityRequirements(this McpServerTool tool)
+      => ClientCapabilityRequirements.ReadFromMeta(tool.ProtocolTool.Meta);
 
-        var reqs = new ClientCapabilityRequirements
-        {
-            Required = attr.Required,
-            Message = attr.Message,
-        };
+  public static void CaptureCapabilityRequirements(this McpServerPrompt prompt)
+  {
+    var methodInfo = prompt.Metadata
+        ?.OfType<MethodInfo>()
+        .FirstOrDefault();
 
-        tool.ProtocolTool.Meta ??= [];
-        reqs.WriteToMeta(tool.ProtocolTool.Meta);
-    }
+    if (methodInfo is null)
+      return;
 
-    public static ClientCapabilityRequirements GetCapabilityRequirements(this McpServerTool tool)
-        => ClientCapabilityRequirements.ReadFromMeta(tool.ProtocolTool.Meta);
+    var attr = methodInfo.GetCustomAttribute<RequiredClientCapabilitiesAttribute>();
+    if (attr is null)
+      return;
 
-    public static void CaptureCapabilityRequirements(this McpServerPrompt prompt)
+    var reqs = new ClientCapabilityRequirements
     {
-        var methodInfo = prompt.Metadata
-            ?.OfType<MethodInfo>()
-            .FirstOrDefault();
+      Required = attr.Required,
+      Message = attr.Message,
+    };
 
-        if (methodInfo is null)
-            return;
+    prompt.ProtocolPrompt.Meta ??= [];
+    reqs.WriteToMeta(prompt.ProtocolPrompt.Meta);
+  }
 
-        var attr = methodInfo.GetCustomAttribute<RequiredClientCapabilitiesAttribute>();
-        if (attr is null)
-            return;
+  public static ClientCapabilityRequirements GetCapabilityRequirements(this McpServerPrompt prompt)
+      => ClientCapabilityRequirements.ReadFromMeta(prompt.ProtocolPrompt.Meta);
 
-        var reqs = new ClientCapabilityRequirements
-        {
-            Required = attr.Required,
-            Message = attr.Message,
-        };
+  public static void CaptureCapabilityRequirements(this McpServerResource resource)
+  {
+    var methodInfo = resource.Metadata
+        ?.OfType<MethodInfo>()
+        .FirstOrDefault();
 
-        prompt.ProtocolPrompt.Meta ??= [];
-        reqs.WriteToMeta(prompt.ProtocolPrompt.Meta);
-    }
+    if (methodInfo is null)
+      return;
 
-    public static ClientCapabilityRequirements GetCapabilityRequirements(this McpServerPrompt prompt)
-        => ClientCapabilityRequirements.ReadFromMeta(prompt.ProtocolPrompt.Meta);
+    var attr = methodInfo.GetCustomAttribute<RequiredClientCapabilitiesAttribute>();
+    if (attr is null)
+      return;
 
-    public static void CaptureCapabilityRequirements(this McpServerResource resource)
+    var reqs = new ClientCapabilityRequirements
     {
-        var methodInfo = resource.Metadata
-            ?.OfType<MethodInfo>()
-            .FirstOrDefault();
+      Required = attr.Required,
+      Message = attr.Message,
+    };
 
-        if (methodInfo is null)
-            return;
-
-        var attr = methodInfo.GetCustomAttribute<RequiredClientCapabilitiesAttribute>();
-        if (attr is null)
-            return;
-
-        var reqs = new ClientCapabilityRequirements
-        {
-            Required = attr.Required,
-            Message = attr.Message,
-        };
-
-        var protocolResource = resource.ProtocolResource;
-        if (protocolResource is not null)
-        {
-            protocolResource.Meta ??= [];
-            reqs.WriteToMeta(protocolResource.Meta);
-        }
+    var protocolResource = resource.ProtocolResource;
+    if (protocolResource is not null)
+    {
+      protocolResource.Meta ??= [];
+      reqs.WriteToMeta(protocolResource.Meta);
     }
+  }
 
-    public static ClientCapabilityRequirements GetCapabilityRequirements(this McpServerResource resource)
-        => ClientCapabilityRequirements.ReadFromMeta(resource.ProtocolResource?.Meta);
+  public static ClientCapabilityRequirements GetCapabilityRequirements(this McpServerResource resource)
+      => ClientCapabilityRequirements.ReadFromMeta(resource.ProtocolResource?.Meta);
 }

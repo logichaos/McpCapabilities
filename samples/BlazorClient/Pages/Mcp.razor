@@ -1,0 +1,45 @@
+@using ModelContextProtocol.Client;
+@page "/mcp"
+
+<PageTitle>MCP</PageTitle>
+
+<h1>MCP</h1>
+
+<p>Test your mcp stuffz here!</p>
+
+@if (mcpClient == null)
+{
+  <p><em>Loading...</em></p>
+}
+else
+{
+  <p> Loaded !!!</p>
+}
+
+@code {
+  [Inject(Key = "httpTransport")]
+  public IClientTransport? HttpTransport {get; set;}
+  
+  [Inject(Key = "mcpClientOptions")]
+  public McpClientOptions? Options { get; set; }
+
+  internal McpClient? mcpClient = null;
+
+  protected override async Task OnInitializedAsync()
+  {
+    if(HttpTransport != null && Options != null)
+      mcpClient = await McpClient.CreateAsync(HttpTransport, Options);
+
+  }
+
+  public class WeatherForecast
+  {
+    public DateOnly Date { get; set; }
+
+    public int TemperatureC { get; set; }
+
+    public string? Summary { get; set; }
+
+    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+  }
+}

@@ -12,30 +12,30 @@ var isStdio = transport is "stdio" or "both";
 
 var mcpBuilder = builder.Services.AddMcpServer(options =>
 {
-    options.ServerInfo = new Implementation
-    {
-        Name = "SampleMcpServer",
-        Version = "1.0",
-    };
-    options.ServerInstructions =
-        "This sample server demonstrates capability-gated MCP primitives. "
-        + "Tools, prompts, and resources are hidden from clients that lack "
-        + "the required capabilities (Sampling, Elicitation, Roots).";
+  options.ServerInfo = new Implementation
+  {
+    Name = "SampleMcpServer",
+    Version = "1.0",
+  };
+  options.ServerInstructions =
+      "This sample server demonstrates capability-gated MCP primitives. "
+      + "Tools, prompts, and resources are hidden from clients that lack "
+      + "the required capabilities (Sampling, Elicitation, Roots).";
 })
     .WithCapabilityAwareTools<AiTools>()
     .WithPrompts<HelpfulPrompts>()
     .WithResources<WorkspaceResources>()
     .AddCapabilityGating();
 if (isStdio)
-    mcpBuilder.WithStdioServerTransport();
+  mcpBuilder.WithStdioServerTransport();
 
 if (isHttp)
-    mcpBuilder.WithHttpTransport();
+  mcpBuilder.WithHttpTransport();
 
 var app = builder.Build();
 var env = app.Environment.EnvironmentName;
 
 if (isHttp)
-    app.MapMcp();
+  app.MapMcp();
 
 await app.RunAsync();

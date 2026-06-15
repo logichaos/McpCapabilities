@@ -19,14 +19,17 @@ indent_size = 2
 [*.json]
 indent_size = 2
 
+[Makefile]
+indent_style = space
+
 # C# files
 [*.cs]
 
 #### Core EditorConfig Options ####
 
 # Indentation and spacing
-indent_size = 4
-tab_width = 4
+indent_size = 2
+tab_width = 2
 
 # New line preferences
 insert_final_newline = false

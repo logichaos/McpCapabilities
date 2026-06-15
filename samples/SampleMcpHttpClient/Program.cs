@@ -11,9 +11,9 @@ await RunClientProfile(
     "FULL (Sampling + Roots + Elicitation)",
     new ClientCapabilities
     {
-        Sampling = new SamplingCapability(),
-        Roots = new RootsCapability(),
-        Elicitation = new ElicitationCapability(),
+      Sampling = new SamplingCapability(),
+      Roots = new RootsCapability(),
+      Elicitation = new ElicitationCapability(),
     });
 
 await RunClientProfile(
@@ -24,35 +24,35 @@ Console.WriteLine("Done.");
 
 async Task RunClientProfile(string label, ClientCapabilities capabilities)
 {
-    Console.WriteLine($"--- Profile: {label} ---");
+  Console.WriteLine($"--- Profile: {label} ---");
 
-    var transport = new HttpClientTransport(new HttpClientTransportOptions
-    {
-        Endpoint = new Uri(serverUrl),
-    });
+  var transport = new HttpClientTransport(new HttpClientTransportOptions
+  {
+    Endpoint = new Uri(serverUrl),
+  });
 
-    var options = new McpClientOptions
-    {
-        ClientInfo = new Implementation { Name = "SampleHttpClient", Version = "1.0" },
-        Capabilities = capabilities,
-    };
+  var options = new McpClientOptions
+  {
+    ClientInfo = new Implementation { Name = "SampleHttpClient", Version = "1.0" },
+    Capabilities = capabilities,
+  };
 
-    await using var client = await McpClient.CreateAsync(transport, options);
+  await using var client = await McpClient.CreateAsync(transport, options);
 
-    var tools = await client.ListToolsAsync();
-    Console.WriteLine($"  Tools ({tools.Count}):");
-    foreach (var t in tools)
-        Console.WriteLine($"    - {t.Name}");
+  var tools = await client.ListToolsAsync();
+  Console.WriteLine($"  Tools ({tools.Count}):");
+  foreach (var t in tools)
+    Console.WriteLine($"    - {t.Name}");
 
-    var prompts = await client.ListPromptsAsync();
-    Console.WriteLine($"  Prompts ({prompts.Count}):");
-    foreach (var p in prompts)
-        Console.WriteLine($"    - {p.Name}");
+  var prompts = await client.ListPromptsAsync();
+  Console.WriteLine($"  Prompts ({prompts.Count}):");
+  foreach (var p in prompts)
+    Console.WriteLine($"    - {p.Name}");
 
-    var resources = await client.ListResourcesAsync();
-    Console.WriteLine($"  Resources ({resources.Count}):");
-    foreach (var r in resources)
-        Console.WriteLine($"    - {r.Name}");
+  var resources = await client.ListResourcesAsync();
+  Console.WriteLine($"  Resources ({resources.Count}):");
+  foreach (var r in resources)
+    Console.WriteLine($"    - {r.Name}");
 
-    Console.WriteLine();
+  Console.WriteLine();
 }

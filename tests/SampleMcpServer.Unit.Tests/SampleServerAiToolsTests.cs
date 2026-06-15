@@ -1,96 +1,99 @@
 using System.Reflection;
+
 using McpCapabilities.Server;
+
 using ModelContextProtocol.Server;
+
 using SampleMcpServer;
 
 namespace SampleMcpServer.Unit.Tests;
 
 public class SampleServerAiToolsTests
 {
-    [Test]
-    public async Task Class_HasMcpServerToolTypeAttribute()
-    {
-        var attr = typeof(AiTools).GetCustomAttribute<McpServerToolTypeAttribute>();
+  [Test]
+  public async Task Class_HasMcpServerToolTypeAttribute()
+  {
+    var attr = typeof(AiTools).GetCustomAttribute<McpServerToolTypeAttribute>();
 
-        await Assert.That(attr).IsNotNull();
-    }
+    await Assert.That(attr).IsNotNull();
+  }
 
-    [Test]
-    public async Task AiSummarize_HasMcpServerToolAttribute()
-    {
-        var method = typeof(AiTools).GetMethod(nameof(AiTools.AiSummarize));
-        var attr = method!.GetCustomAttribute<McpServerToolAttribute>();
+  [Test]
+  public async Task AiSummarize_HasMcpServerToolAttribute()
+  {
+    var method = typeof(AiTools).GetMethod(nameof(AiTools.AiSummarize));
+    var attr = method!.GetCustomAttribute<McpServerToolAttribute>();
 
-        await Assert.That(attr).IsNotNull();
-    }
+    await Assert.That(attr).IsNotNull();
+  }
 
-    [Test]
-    public async Task AiSummarize_HasRequiredClientCapabilities_Sampling()
-    {
-        var method = typeof(AiTools).GetMethod(nameof(AiTools.AiSummarize));
-        var attr = method!.GetCustomAttribute<RequiredClientCapabilitiesAttribute>();
+  [Test]
+  public async Task AiSummarize_HasRequiredClientCapabilities_Sampling()
+  {
+    var method = typeof(AiTools).GetMethod(nameof(AiTools.AiSummarize));
+    var attr = method!.GetCustomAttribute<RequiredClientCapabilitiesAttribute>();
 
-        await Assert.That(attr).IsNotNull();
-        await Assert.That(attr!.Required).IsEqualTo(CapabilityFlag.Sampling);
-        await Assert.That(attr.Message).IsEqualTo("Requires LLM sampling support");
-    }
+    await Assert.That(attr).IsNotNull();
+    await Assert.That(attr!.Required).IsEqualTo(CapabilityFlag.Sampling);
+    await Assert.That(attr.Message).IsEqualTo("Requires LLM sampling support");
+  }
 
-    [Test]
-    public async Task Echo_HasMcpServerToolAttribute()
-    {
-        var method = typeof(AiTools).GetMethod(nameof(AiTools.Echo));
-        var attr = method!.GetCustomAttribute<McpServerToolAttribute>();
+  [Test]
+  public async Task Echo_HasMcpServerToolAttribute()
+  {
+    var method = typeof(AiTools).GetMethod(nameof(AiTools.Echo));
+    var attr = method!.GetCustomAttribute<McpServerToolAttribute>();
 
-        await Assert.That(attr).IsNotNull();
-    }
+    await Assert.That(attr).IsNotNull();
+  }
 
-    [Test]
-    public async Task Echo_DoesNotHaveRequiredClientCapabilities()
-    {
-        var method = typeof(AiTools).GetMethod(nameof(AiTools.Echo));
-        var attr = method!.GetCustomAttribute<RequiredClientCapabilitiesAttribute>();
+  [Test]
+  public async Task Echo_DoesNotHaveRequiredClientCapabilities()
+  {
+    var method = typeof(AiTools).GetMethod(nameof(AiTools.Echo));
+    var attr = method!.GetCustomAttribute<RequiredClientCapabilitiesAttribute>();
 
-        await Assert.That(attr).IsNull();
-    }
+    await Assert.That(attr).IsNull();
+  }
 
-    [Test]
-    public async Task AiSummarize_ReturnsString()
-    {
-        var tools = new AiTools();
+  [Test]
+  public async Task AiSummarize_ReturnsString()
+  {
+    var tools = new AiTools();
 
-        var result = tools.AiSummarize("hello");
+    var result = tools.AiSummarize("hello");
 
-        await Assert.That(result).IsNotNull();
-        await Assert.That(result).Contains("hello");
-    }
+    await Assert.That(result).IsNotNull();
+    await Assert.That(result).Contains("hello");
+  }
 
-    [Test]
-    public async Task Echo_ReturnsInputVerbatim()
-    {
-        var tools = new AiTools();
+  [Test]
+  public async Task Echo_ReturnsInputVerbatim()
+  {
+    var tools = new AiTools();
 
-        var result = tools.Echo("test input");
+    var result = tools.Echo("test input");
 
-        await Assert.That(result).IsEqualTo("test input");
-    }
+    await Assert.That(result).IsEqualTo("test input");
+  }
 
-    [Test]
-    public async Task AiSummarize_Method_IsReflectedCorrectly()
-    {
-        var method = typeof(AiTools).GetMethod(nameof(AiTools.AiSummarize))!;
+  [Test]
+  public async Task AiSummarize_Method_IsReflectedCorrectly()
+  {
+    var method = typeof(AiTools).GetMethod(nameof(AiTools.AiSummarize))!;
 
-        await Assert.That(method.ReturnType).IsEqualTo(typeof(string));
-        await Assert.That(method.GetParameters()).Count().IsEqualTo(1);
-        await Assert.That(method.GetParameters()[0].ParameterType).IsEqualTo(typeof(string));
-    }
+    await Assert.That(method.ReturnType).IsEqualTo(typeof(string));
+    await Assert.That(method.GetParameters()).Count().IsEqualTo(1);
+    await Assert.That(method.GetParameters()[0].ParameterType).IsEqualTo(typeof(string));
+  }
 
-    [Test]
-    public async Task Echo_Method_IsReflectedCorrectly()
-    {
-        var method = typeof(AiTools).GetMethod(nameof(AiTools.Echo))!;
+  [Test]
+  public async Task Echo_Method_IsReflectedCorrectly()
+  {
+    var method = typeof(AiTools).GetMethod(nameof(AiTools.Echo))!;
 
-        await Assert.That(method.ReturnType).IsEqualTo(typeof(string));
-        await Assert.That(method.GetParameters()).Count().IsEqualTo(1);
-        await Assert.That(method.GetParameters()[0].ParameterType).IsEqualTo(typeof(string));
-    }
+    await Assert.That(method.ReturnType).IsEqualTo(typeof(string));
+    await Assert.That(method.GetParameters()).Count().IsEqualTo(1);
+    await Assert.That(method.GetParameters()[0].ParameterType).IsEqualTo(typeof(string));
+  }
 }

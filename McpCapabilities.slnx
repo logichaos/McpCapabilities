@@ -5,6 +5,7 @@
   
   <Folder Name="/samples/">
     <Project Path="samples/SampleMcpServer/SampleMcpServer.csproj" />
+    <Project Path="samples/BlazorClient/BlazorClient.csproj" />
     <Project Path="samples/SampleMcpClient/SampleMcpClient.csproj" />
     <Project Path="samples/SampleMcpHttpClient/SampleMcpHttpClient.csproj" />
   </Folder>
