@@ -22,6 +22,13 @@ flowchart LR
     B --> B2
 ```
 
+## Before you go any further
+
+- I have created this repo on my journey to learn more about MCP in .net.
+- While working with the [csharp-sdk](https://github.com/modelcontextprotocol/csharp-sdk), I didn't find anything that works with the client capabilities, on the side of the server.
+- Since I am a strong believer that we should keep the context for your model as concise as possible, it bugged me that tools would be propagated to the client, even if the client couldn't make use of them, cluttering the context with descriptions that it doesn't need.
+- This is the result of me tinkering about to "filter" the output to the clients, depending on the capabilities that they advertise.
+
 ## Why?
 
 MCP servers often expose features that depend on client-side capabilities — LLM sampling, user elicitation, filesystem roots, etc. Without capability gating, every client sees every tool, even ones it can't use. That leads to broken UX and confusing error messages.
@@ -118,19 +125,19 @@ stateDiagram-v2
 
 `CapabilityFlag` is a `[Flags]` enum. Combine multiple flags with bitwise OR.
 
-| Flag | Built-in Capability | Description |
-|------|-------------------|-------------|
-| `None` | — | No capabilities required |
-| `Sampling` | `ClientCapabilities.Sampling` | LLM sampling requests |
-| `Roots` | `ClientCapabilities.Roots` | Filesystem root listing |
-| `Elicitation` | `ClientCapabilities.Elicitation` | Elicitation (any mode) |
-| `ElicitationForm` | `Elicitation.Form` | Form-mode elicitation |
-| `ElicitationUrl` | `Elicitation.Url` | URL-mode elicitation |
-| `Tasks` | `ClientCapabilities.Tasks` | Task-augmented requests |
-| `TaskList` | `Tasks.List` | Task listing |
-| `TaskCancel` | `Tasks.Cancel` | Task cancellation |
-| `TaskAugmentedSampling` | `Tasks.Requests.Sampling` | Task-augmented LLM sampling |
-| `TaskAugmentedElicitation` | `Tasks.Requests.Elicitation` | Task-augmented elicitation |
+| Flag                       | Built-in Capability              | Description                 |
+| -------------------------- | -------------------------------- | --------------------------- |
+| `None`                     | —                                | No capabilities required    |
+| `Sampling`                 | `ClientCapabilities.Sampling`    | LLM sampling requests       |
+| `Roots`                    | `ClientCapabilities.Roots`       | Filesystem root listing     |
+| `Elicitation`              | `ClientCapabilities.Elicitation` | Elicitation (any mode)      |
+| `ElicitationForm`          | `Elicitation.Form`               | Form-mode elicitation       |
+| `ElicitationUrl`           | `Elicitation.Url`                | URL-mode elicitation        |
+| `Tasks`                    | `ClientCapabilities.Tasks`       | Task-augmented requests     |
+| `TaskList`                 | `Tasks.List`                     | Task listing                |
+| `TaskCancel`               | `Tasks.Cancel`                   | Task cancellation           |
+| `TaskAugmentedSampling`    | `Tasks.Requests.Sampling`        | Task-augmented LLM sampling |
+| `TaskAugmentedElicitation` | `Tasks.Requests.Elicitation`     | Task-augmented elicitation  |
 
 ### Bitmask Satisfaction
 
@@ -285,4 +292,14 @@ Commits after a tag get a pre-release suffix (e.g., `1.2.4-alpha.0.5`).
 
 ## License
 
-MIT
+Mozille Public License 2.0
+
+## DISCLAIMER
+
+- This is a project for me to learn more about MCP, how it works, and how I can use it in own products.
+- I have used AI assisted coding to generate most of this code.
+- My focus has been learning and understanding how the csharp sdk for MCP works and how to use it. I am unsure if I am doing it the correct way, but I would be happy (excited, even) to get some feedback.
+- If you have any suggestion, please don't hesitate to create an issue.
+- My choice of license is supported by the following points:
+  - I would like people to be able to learn from what I have learned, that's why it is open to be used as is.
+  - If someone changes something that might be helpful to the learning process (of making this a full fledged, production ready library), I would appreciate that information to flow back into this repository, so that we all can benefit.
