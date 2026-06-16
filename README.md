@@ -270,6 +270,16 @@ result.Switch(
     });
 ```
 
+## Samples
+
+- there are several sample project in the ./samples/ directory. They are used to test the library.
+- There is one server, that can be started as both stdio or http (or both)
+- There is a blazor wasm client that connects to the server.
+  - I have NEVER developed blazor before.
+  - I am impressed by how I could generate this using AI assisted coding.
+  - I give ZERO guarantee for correctness, I do, however, test the library with it all the time.
+  - If you have any input on that, don't hesitate to write up an issue.
+
 ## Versioning
 
 This project uses [MinVer](https://github.com/adamralph/minver) for automatic versioning from git tags:
