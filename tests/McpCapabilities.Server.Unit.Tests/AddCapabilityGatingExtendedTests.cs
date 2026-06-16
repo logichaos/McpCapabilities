@@ -60,7 +60,7 @@ public class AddCapabilityGatingExtendedTests
     services.Configure<McpServerOptions>(ConfigureOptions);
 
     services.AddMcpServer()
-        .WithCapabilityAwareTools<TestTools>()
+        .WithTools<TestTools>()
         .AddCapabilityGating();
 
     var sp = services.BuildServiceProvider();
@@ -111,7 +111,7 @@ public class AddCapabilityGatingExtendedTests
     services.Configure<McpServerOptions>(ConfigureOptions);
 
     services.AddMcpServer()
-        .WithCapabilityAwareTools<TestTools>()
+        .WithTools<TestTools>()
         .WithPrompts<TestPrompts>()
         .WithResources<TestResources>()
         .AddCapabilityGating();
@@ -261,7 +261,7 @@ public class AddCapabilityGatingExtendedTests
     });
 
     services.AddMcpServer()
-        .WithCapabilityAwareTools<TestTools>()
+        .WithTools<TestTools>()
         .WithPrompts<TestPrompts>()
         .WithResources<TestResources>()
         .AddCapabilityGating();
@@ -322,5 +322,67 @@ public class AddCapabilityGatingExtendedTests
     await Assert.That(resolvedOptions.Handlers.ListToolsHandler is not null).IsTrue();
     await Assert.That(resolvedOptions.Handlers.ListPromptsHandler is not null).IsTrue();
     await Assert.That(resolvedOptions.Handlers.ListResourcesHandler is not null).IsTrue();
+  }
+
+  [Test]
+  public async Task Configure_Callbacks_FireForGatedPrimitivesOnly()
+  {
+    var toolCalls = new List<(string Name, CapabilityFlag Required)>();
+    var promptCalls = new List<(string Name, CapabilityFlag Required)>();
+    var resourceCalls = new List<(string Name, CapabilityFlag Required)>();
+
+    var services = new ServiceCollection();
+    services.AddOptions();
+    services.Configure<McpServerOptions>(ConfigureOptions);
+
+    services.AddMcpServer()
+        .WithTools<TestTools>()
+        .WithPrompts<TestPrompts>()
+        .WithResources<TestResources>()
+        .AddCapabilityGating(options =>
+        {
+          options.OnToolRequirements = (tool, reqs) =>
+              toolCalls.Add((tool.ProtocolTool.Name, reqs.Required));
+          options.OnPromptRequirements = (prompt, reqs) =>
+              promptCalls.Add((prompt.ProtocolPrompt.Name, reqs.Required));
+          options.OnResourceRequirements = (resource, reqs) =>
+              resourceCalls.Add((resource.ProtocolResource?.Name ?? "", reqs.Required));
+        });
+
+    var sp = services.BuildServiceProvider();
+    _ = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
+
+    await Assert.That(toolCalls).Count().IsEqualTo(1);
+    await Assert.That(toolCalls[0].Name).IsEqualTo("sampling_tool");
+    await Assert.That(toolCalls[0].Required).IsEqualTo(CapabilityFlag.Sampling);
+
+    await Assert.That(promptCalls).Count().IsEqualTo(1);
+    await Assert.That(promptCalls[0].Name).IsEqualTo("elicitation_prompt");
+    await Assert.That(promptCalls[0].Required).IsEqualTo(CapabilityFlag.Elicitation);
+
+    await Assert.That(resourceCalls).Count().IsEqualTo(1);
+    await Assert.That(resourceCalls[0].Name).IsEqualTo("roots_resource");
+    await Assert.That(resourceCalls[0].Required).IsEqualTo(CapabilityFlag.Roots);
+  }
+
+  [Test]
+  public async Task Configure_Callbacks_NotInvokedWhenNoConfigureProvided()
+  {
+    var services = new ServiceCollection();
+    services.AddOptions();
+    services.Configure<McpServerOptions>(ConfigureOptions);
+
+    services.AddMcpServer()
+        .WithTools<TestTools>()
+        .WithPrompts<TestPrompts>()
+        .WithResources<TestResources>()
+        .AddCapabilityGating();
+
+    var sp = services.BuildServiceProvider();
+    var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
+
+    await Assert.That(options.Handlers.ListToolsHandler is not null).IsTrue();
+    await Assert.That(options.Handlers.ListPromptsHandler is not null).IsTrue();
+    await Assert.That(options.Handlers.ListResourcesHandler is not null).IsTrue();
   }
 }

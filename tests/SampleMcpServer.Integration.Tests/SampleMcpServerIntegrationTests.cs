@@ -24,7 +24,7 @@ public class SampleMcpServerIntegrationTests
       options.ServerInfo = new Implementation { Name = "SampleMcpServer", Version = "1.0" };
       options.Handlers = new McpServerHandlers();
     })
-        .WithCapabilityAwareTools<AiTools>()
+        .WithTools<AiTools>()
         .WithPrompts<HelpfulPrompts>()
         .WithResources<WorkspaceResources>();
 

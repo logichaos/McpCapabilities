@@ -33,7 +33,7 @@ public class SampleMcpHttpClientIntegrationTests : IAsyncDisposable
       options.ServerInfo = new Implementation { Name = "SampleMcpServer", Version = "1.0" };
       options.Handlers = new ModelContextProtocol.Server.McpServerHandlers();
     })
-        .WithCapabilityAwareTools<AiTools>()
+        .WithTools<AiTools>()
         .WithPrompts<HelpfulPrompts>()
         .WithResources<WorkspaceResources>()
         .AddCapabilityGating()

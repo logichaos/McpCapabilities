@@ -33,7 +33,7 @@ var mcpBuilder = builder.Services.AddMcpServer(options =>
       + "Tools, prompts, and resources are hidden from clients that lack "
       + "the required capabilities (Sampling, Elicitation, Roots).";
 })
-    .WithCapabilityAwareTools<AiTools>()
+    .WithTools<AiTools>()
     .WithPrompts<HelpfulPrompts>()
     .WithResources<WorkspaceResources>()
     .AddCapabilityGating();

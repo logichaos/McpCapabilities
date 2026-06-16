@@ -57,7 +57,7 @@ public class AddCapabilityGatingHandlerInvocationTests
     });
 
     services.AddMcpServer()
-        .WithCapabilityAwareTools<TestTools>()
+        .WithTools<TestTools>()
         .WithPrompts<TestPrompts>()
         .WithResources<TestResources>()
         .AddCapabilityGating();

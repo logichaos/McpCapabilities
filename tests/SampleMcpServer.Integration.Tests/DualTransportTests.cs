@@ -42,7 +42,7 @@ public class DualTransportTests
       options.ServerInfo = new Implementation { Name = "Test", Version = "1.0" };
       options.Handlers = new McpServerHandlers();
     })
-        .WithCapabilityAwareTools<AiTools>()
+        .WithTools<AiTools>()
         .WithPrompts<HelpfulPrompts>()
         .WithResources<WorkspaceResources>()
         .AddCapabilityGating()
@@ -68,7 +68,7 @@ public class DualTransportTests
       options.ServerInfo = new Implementation { Name = "Test", Version = "1.0" };
       options.Handlers = new McpServerHandlers();
     })
-        .WithCapabilityAwareTools<AiTools>()
+        .WithTools<AiTools>()
         .WithPrompts<HelpfulPrompts>()
         .WithResources<WorkspaceResources>()
         .AddCapabilityGating()
@@ -94,7 +94,7 @@ public class DualTransportTests
       options.ServerInfo = new Implementation { Name = "Test", Version = "1.0" };
       options.Handlers = new McpServerHandlers();
     })
-        .WithCapabilityAwareTools<AiTools>()
+        .WithTools<AiTools>()
         .WithPrompts<HelpfulPrompts>()
         .WithResources<WorkspaceResources>()
         .AddCapabilityGating()
@@ -158,7 +158,7 @@ public class DualTransportTests
       options.ServerInfo = new Implementation { Name = "Test", Version = "1.0" };
       options.Handlers = new McpServerHandlers();
     })
-        .WithCapabilityAwareTools<AiTools>()
+        .WithTools<AiTools>()
         .WithPrompts<HelpfulPrompts>()
         .WithResources<WorkspaceResources>()
         .AddCapabilityGating()

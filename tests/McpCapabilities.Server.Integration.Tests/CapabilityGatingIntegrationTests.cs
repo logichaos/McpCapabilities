@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Text.Json.Nodes;
 
 using McpCapabilities.Server;
@@ -29,7 +28,7 @@ public class CapabilityGatingIntegrationTests
   }
 
   [Test]
-  public async Task WithCapabilityAwareTools_CapturesAttributesIntoMeta()
+  public async Task AddCapabilityGating_WithTools_SetsHandlersAndClearsCollection()
   {
     var services = new ServiceCollection();
     services.AddOptions();
@@ -40,55 +39,14 @@ public class CapabilityGatingIntegrationTests
     });
 
     services.AddMcpServer()
-        .WithCapabilityAwareTools<AnnotatedTools>();
+        .WithTools<AnnotatedTools>()
+        .AddCapabilityGating();
 
     var sp = services.BuildServiceProvider();
     var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
 
-    await Assert.That(options.ToolCollection).IsNotNull();
-
-    var samplingTool = options.ToolCollection!
-        .FirstOrDefault(t =>
-        {
-          var methodInfo = t.Metadata?.OfType<MethodInfo>().FirstOrDefault();
-          return methodInfo?.Name == nameof(AnnotatedTools.ToolRequiringSampling);
-        });
-
-    await Assert.That(samplingTool).IsNotNull();
-
-    var reqs = samplingTool!.GetCapabilityRequirements();
-    await Assert.That(reqs.Required).IsEqualTo(CapabilityFlag.Sampling);
-    await Assert.That(reqs.Message).IsEqualTo("Needs LLM");
-  }
-
-  [Test]
-  public async Task WithCapabilityAwareTools_NoAttributeTool_DoesNotHaveMetaRequirements()
-  {
-    var services = new ServiceCollection();
-    services.AddOptions();
-    services.Configure<McpServerOptions>(opt =>
-    {
-      opt.Handlers = new McpServerHandlers();
-      opt.ServerInfo = new Implementation { Name = "Test", Version = "1.0" };
-    });
-
-    services.AddMcpServer()
-        .WithCapabilityAwareTools<AnnotatedTools>();
-
-    var sp = services.BuildServiceProvider();
-    var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
-
-    var noReqTool = options.ToolCollection!
-        .FirstOrDefault(t =>
-        {
-          var methodInfo = t.Metadata?.OfType<MethodInfo>().FirstOrDefault();
-          return methodInfo?.Name == nameof(AnnotatedTools.ToolNoRequirements);
-        });
-
-    await Assert.That(noReqTool).IsNotNull();
-
-    var reqs = noReqTool!.GetCapabilityRequirements();
-    await Assert.That(reqs.Required).IsEqualTo(CapabilityFlag.None);
+    await Assert.That(options.Handlers.ListToolsHandler is not null).IsTrue();
+    await Assert.That(options.ToolCollection is null).IsTrue();
   }
 
   [Test]

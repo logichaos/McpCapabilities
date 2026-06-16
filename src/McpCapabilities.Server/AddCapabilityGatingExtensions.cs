@@ -9,18 +9,37 @@ using ModelContextProtocol.Server;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
+public class CapabilityGatingOptions
+{
+  public Action<McpServerTool, ClientCapabilityRequirements>? OnToolRequirements { get; set; }
+  public Action<McpServerPrompt, ClientCapabilityRequirements>? OnPromptRequirements { get; set; }
+  public Action<McpServerResource, ClientCapabilityRequirements>? OnResourceRequirements { get; set; }
+}
+
 public static class AddCapabilityGatingExtensions
 {
-  public static IMcpServerBuilder AddCapabilityGating(this IMcpServerBuilder builder)
+  public static IMcpServerBuilder AddCapabilityGating(
+      this IMcpServerBuilder builder,
+      Action<CapabilityGatingOptions>? configureOptions = null)
   {
+    var gatingOptions = new CapabilityGatingOptions();
+    configureOptions?.Invoke(gatingOptions);
+
     builder.Services.AddSingleton<IConfigureOptions<McpServerOptions>>(
-        new CapabilityGatingConfigureOptions());
+        new CapabilityGatingConfigureOptions(gatingOptions));
 
     return builder;
   }
 
   private sealed class CapabilityGatingConfigureOptions : IConfigureOptions<McpServerOptions>
   {
+    private readonly CapabilityGatingOptions _gatingOptions;
+
+    public CapabilityGatingConfigureOptions(CapabilityGatingOptions gatingOptions)
+    {
+      _gatingOptions = gatingOptions;
+    }
+
     public void Configure(McpServerOptions options)
     {
       // Capture capability requirements from all registered primitives.
@@ -29,17 +48,41 @@ public static class AddCapabilityGatingExtensions
       if (options.ToolCollection is not null)
       {
         foreach (var tool in options.ToolCollection)
+        {
           tool.CaptureCapabilityRequirements();
+          if (_gatingOptions.OnToolRequirements is { } onTool)
+          {
+            var reqs = tool.GetCapabilityRequirements();
+            if (reqs.Required != CapabilityFlag.None)
+              onTool(tool, reqs);
+          }
+        }
       }
       if (options.PromptCollection is not null)
       {
         foreach (var prompt in options.PromptCollection)
+        {
           prompt.CaptureCapabilityRequirements();
+          if (_gatingOptions.OnPromptRequirements is { } onPrompt)
+          {
+            var reqs = prompt.GetCapabilityRequirements();
+            if (reqs.Required != CapabilityFlag.None)
+              onPrompt(prompt, reqs);
+          }
+        }
       }
       if (options.ResourceCollection is not null)
       {
         foreach (var resource in options.ResourceCollection)
+        {
           resource.CaptureCapabilityRequirements();
+          if (_gatingOptions.OnResourceRequirements is { } onResource)
+          {
+            var reqs = resource.GetCapabilityRequirements();
+            if (reqs.Required != CapabilityFlag.None)
+              onResource(resource, reqs);
+          }
+        }
       }
 
       static CapabilityFlag GetClientFlags<TParams>(RequestContext<TParams> request)
