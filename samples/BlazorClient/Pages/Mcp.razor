@@ -1,4 +1,3 @@
-@using ModelContextProtocol.Client
 @page "/"
 @page "/mcp"
 
@@ -6,63 +5,4 @@
 
 <h1>MCP</h1>
 
-@if (mcpClient == null)
-{
-  <p><em>Loading Client...</em></p>
-}
-else
-{
-  @if (_tools is not null)
-  {
-    <ToolTable Client="mcpClient" Tools="_tools" />
-  }
-  else
-  {
-    <p><em>Loading tools...</em></p>
-  }
-
-  @if (_prompts is not null)
-  {
-    <PromptTable Client="mcpClient" Prompts="_prompts" />
-  }
-  else
-  {
-    <p><em>Loading prompts...</em></p>
-  }
-
-  @if (_resources is not null)
-  {
-    <ResourceTable Client="mcpClient" Resources="_resources" />
-  }
-  else
-  {
-    <p><em>Loading resources...</em></p>
-  }
-}
-
-@code {
-  [Inject(Key = "httpTransport")]
-  public IClientTransport? HttpTransport { get; set; }
-
-  [Inject(Key = "mcpClientOptions")]
-  public McpClientOptions? Options { get; set; }
-
-  internal McpClient? mcpClient = null;
-
-  internal IList<McpClientTool>? _tools;
-  internal IList<McpClientPrompt>? _prompts;
-  internal IList<McpClientResource>? _resources;
-
-  protected override async Task OnInitializedAsync()
-  {
-    if (HttpTransport != null && Options != null)
-      mcpClient = await McpClient.CreateAsync(HttpTransport, Options);
-
-    if (mcpClient is null)
-      return;
-
-    _tools = await mcpClient.ListToolsAsync();
-    _prompts = await mcpClient.ListPromptsAsync();
-    _resources = await mcpClient.ListResourcesAsync();
-  }
-}
+<McpClientView OptionsKey="fullMcpClientOptions" />

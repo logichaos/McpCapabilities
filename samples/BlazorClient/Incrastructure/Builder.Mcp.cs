@@ -42,7 +42,7 @@ internal static partial class Builder
         },
       };
     });
-    services.AddKeyedScoped("mcpClientOptions", (services, obj) =>
+    services.AddKeyedScoped("fullMcpClientOptions", (services, obj) =>
     {
       return new McpClientOptions()
       {
@@ -51,7 +51,20 @@ internal static partial class Builder
         Handlers = ClientHandlerFactory.Create(services),
       };
     });
-    
+
+    services.AddKeyedScoped("minimalClientCaps", (services, _) =>
+    {
+      return new ClientCapabilities();
+    });
+    services.AddKeyedScoped("minimalMcpClientOptions", (services, obj) =>
+    {
+      return new McpClientOptions()
+      {
+        Capabilities = services.GetRequiredKeyedService<ClientCapabilities>("minimalClientCaps"),
+        ClientInfo = new Implementation { Name = "BlazorClient-Minimal", Version = "0.1.0" },
+      };
+    });
+
     return services;
   }
 }

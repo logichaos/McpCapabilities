@@ -1,0 +1,99 @@
+@page "/mcp-config"
+@using BlazorClient.Infrastructure
+@using ModelContextProtocol.Client
+@using ModelContextProtocol.Protocol
+
+<PageTitle>MCP Configurable</PageTitle>
+
+<h1>MCP Configurable</h1>
+
+@if (!_applied)
+{
+  <div class="mb-3">
+    <h4>Select Capabilities</h4>
+
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="chkSampling" @bind="_sampling" />
+      <label class="form-check-label" for="chkSampling">Sampling</label>
+    </div>
+
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="chkRoots" @bind="_roots" />
+      <label class="form-check-label" for="chkRoots">Roots</label>
+    </div>
+
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="chkElicitation" @bind="_elicitation" />
+      <label class="form-check-label" for="chkElicitation">Elicitation</label>
+    </div>
+
+    <div class="ms-4 @(_elicitation ? "" : "d-none")">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="chkElicitationForm" @bind="_elicitationForm" />
+        <label class="form-check-label" for="chkElicitationForm">Form Elicitation</label>
+      </div>
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="chkElicitationUrl" @bind="_elicitationUrl" />
+        <label class="form-check-label" for="chkElicitationUrl">URL Elicitation</label>
+      </div>
+    </div>
+  </div>
+
+  <button class="btn btn-primary" @onclick="Apply">Apply</button>
+}
+else
+{
+  <button class="btn btn-outline-secondary mb-3" @onclick="Reset">&#8592; Back to Capabilities</button>
+  <McpClientView Options="_options" />
+}
+
+@code {
+  [Inject]
+  public IServiceProvider Services { get; set; } = default!;
+
+  private bool _sampling;
+  private bool _roots;
+  private bool _elicitation;
+  private bool _elicitationForm;
+  private bool _elicitationUrl;
+
+  private bool _applied;
+  private McpClientOptions? _options;
+
+  private void Apply()
+  {
+    var caps = new ClientCapabilities();
+
+    if (_sampling)
+      caps.Sampling = new SamplingCapability();
+
+    if (_roots)
+      caps.Roots = new RootsCapability();
+
+    if (_elicitation)
+    {
+      caps.Elicitation = new ElicitationCapability();
+
+      if (_elicitationForm)
+        caps.Elicitation.Form = new FormElicitationCapability();
+
+      if (_elicitationUrl)
+        caps.Elicitation.Url = new UrlElicitationCapability();
+    }
+
+    _options = new McpClientOptions
+    {
+      Capabilities = caps,
+      ClientInfo = new Implementation { Name = "BlazorClient-Configurable", Version = "0.1.0" },
+      Handlers = ClientHandlerFactory.Create(Services),
+    };
+
+    _applied = true;
+  }
+
+  private void Reset()
+  {
+    _applied = false;
+    _options = null;
+  }
+}

@@ -1,0 +1,82 @@
+@using ModelContextProtocol.Client
+@using BlazorClient.Pages
+
+@if (mcpClient == null)
+{
+  <p><em>Loading Client...</em></p>
+}
+else
+{
+  @if (_tools is not null)
+  {
+    <ToolTable Client="mcpClient" Tools="_tools" />
+  }
+  else
+  {
+    <p><em>Loading tools...</em></p>
+  }
+
+  @if (_prompts is not null)
+  {
+    <PromptTable Client="mcpClient" Prompts="_prompts" />
+  }
+  else
+  {
+    <p><em>Loading prompts...</em></p>
+  }
+
+  @if (_resources is not null)
+  {
+    <ResourceTable Client="mcpClient" Resources="_resources" />
+  }
+  else
+  {
+    <p><em>Loading resources...</em></p>
+  }
+}
+
+@code {
+  [Parameter]
+  public string? OptionsKey { get; set; }
+
+  [Parameter]
+  public McpClientOptions? Options { get; set; }
+
+  [Inject]
+  public IServiceProvider Services { get; set; } = default!;
+
+  internal McpClient? mcpClient = null;
+
+  internal IList<McpClientTool>? _tools;
+  internal IList<McpClientPrompt>? _prompts;
+  internal IList<McpClientResource>? _resources;
+
+  protected override async Task OnInitializedAsync()
+  {
+    var transport = Services.GetRequiredKeyedService<IClientTransport>("httpTransport");
+
+    McpClientOptions resolvedOptions;
+
+    if (Options is not null)
+    {
+      resolvedOptions = Options;
+    }
+    else if (OptionsKey is not null)
+    {
+      resolvedOptions = Services.GetRequiredKeyedService<McpClientOptions>(OptionsKey);
+    }
+    else
+    {
+      return;
+    }
+
+    mcpClient = await McpClient.CreateAsync(transport, resolvedOptions);
+
+    if (mcpClient is null)
+      return;
+
+    _tools = await mcpClient.ListToolsAsync();
+    _prompts = await mcpClient.ListPromptsAsync();
+    _resources = await mcpClient.ListResourcesAsync();
+  }
+}
