@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+
 using ModelContextProtocol;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;

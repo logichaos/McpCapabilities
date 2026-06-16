@@ -8,13 +8,13 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddCors(options =>
 {
-    options.AddDefaultPolicy(policy =>
-    {
-        policy.WithOrigins(builder.Configuration.GetValue<string>("Cors:AllowedOrigins") ?? "https://localhost:7197")
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .WithExposedHeaders("Mcp-Session-Id");
-    });
+  options.AddDefaultPolicy(policy =>
+  {
+    policy.WithOrigins(builder.Configuration.GetValue<string>("Cors:AllowedOrigins") ?? "https://localhost:7197")
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .WithExposedHeaders("Mcp-Session-Id");
+  });
 });
 
 var transport = builder.Configuration.GetValue<string>("MCP:Transport") ?? "stdio";

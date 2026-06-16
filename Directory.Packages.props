@@ -5,6 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <!--Src-->
+    <PackageVersion Include="MinVer" Version="5.0.0" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="11.0.0-preview.5.26302.115" />
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="11.0.0-preview.5.26302.115" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0-preview.5.26302.115" />

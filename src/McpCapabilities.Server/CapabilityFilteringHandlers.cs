@@ -53,10 +53,10 @@ public static class CapabilityFilteringHandlers
       var filtered = fullResult.Prompts
               .Where(p =>
               {
-              var reqs = ClientCapabilityRequirements.ReadFromMeta(p.Meta);
-              return reqs.Required == CapabilityFlag.None
-                      || (clientFlags & reqs.Required) == reqs.Required;
-            })
+                var reqs = ClientCapabilityRequirements.ReadFromMeta(p.Meta);
+                return reqs.Required == CapabilityFlag.None
+                        || (clientFlags & reqs.Required) == reqs.Required;
+              })
               .ToList();
 
       fullResult.Prompts = filtered;
@@ -79,10 +79,10 @@ public static class CapabilityFilteringHandlers
       var filtered = fullResult.Resources
               .Where(r =>
               {
-              var reqs = ClientCapabilityRequirements.ReadFromMeta(r.Meta);
-              return reqs.Required == CapabilityFlag.None
-                      || (clientFlags & reqs.Required) == reqs.Required;
-            })
+                var reqs = ClientCapabilityRequirements.ReadFromMeta(r.Meta);
+                return reqs.Required == CapabilityFlag.None
+                        || (clientFlags & reqs.Required) == reqs.Required;
+              })
               .ToList();
 
       fullResult.Resources = filtered;

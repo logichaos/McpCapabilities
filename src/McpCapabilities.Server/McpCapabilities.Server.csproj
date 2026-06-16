@@ -10,9 +10,16 @@
     <Description>Capability-gating library for MCP servers. Provides compile-time attribute-based annotation of MCP tools, prompts, and resources with runtime FluentResults-based filtering based on the connected client's ClientCapabilities.</Description>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <MinVerTagPrefix>v</MinVerTagPrefix>
   </PropertyGroup>
 
   <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MinVer" PrivateAssets="All" />
     <PackageReference Include="ModelContextProtocol" />
     <PackageReference Include="FluentResults" />
   </ItemGroup>
