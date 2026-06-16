@@ -57,17 +57,6 @@ public class SampleServerHelpfulPromptsTests
   }
 
   [Test]
-  public async Task ConfirmAction_ReturnsNonEmptyString()
-  {
-    var prompts = new HelpfulPrompts();
-
-    var result = prompts.ConfirmAction();
-
-    await Assert.That(result).IsNotNull();
-    await Assert.That(result).IsNotEmpty();
-  }
-
-  [Test]
   public async Task Greeting_ReturnsNonEmptyString()
   {
     var prompts = new HelpfulPrompts();
@@ -79,12 +68,14 @@ public class SampleServerHelpfulPromptsTests
   }
 
   [Test]
-  public async Task ConfirmAction_Method_ReturnsStringTakesNoArgs()
+  public async Task ConfirmAction_Method_ReturnsTaskOfStringTakesServerAndToken()
   {
     var method = typeof(HelpfulPrompts).GetMethod(nameof(HelpfulPrompts.ConfirmAction))!;
 
-    await Assert.That(method.ReturnType).IsEqualTo(typeof(string));
-    await Assert.That(method.GetParameters()).IsEmpty();
+    await Assert.That(method.ReturnType).IsEqualTo(typeof(Task<string>));
+    await Assert.That(method.GetParameters()).Count().IsEqualTo(2);
+    await Assert.That(method.GetParameters()[0].ParameterType).IsEqualTo(typeof(McpServer));
+    await Assert.That(method.GetParameters()[1].ParameterType).IsEqualTo(typeof(CancellationToken));
   }
 
   [Test]

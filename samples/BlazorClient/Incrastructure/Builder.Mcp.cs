@@ -8,6 +8,7 @@ internal static partial class Builder
   public static IServiceCollection AddMcp(this IServiceCollection services, IConfiguration configuration)
   {
     services.AddScoped<SamplingPopupService>();
+    services.AddScoped<ElicitationPopupService>();
 
     services.AddKeyedScoped("httpOptions", (services, obj) =>
     {
@@ -34,7 +35,11 @@ internal static partial class Builder
       {
         Sampling = new SamplingCapability(),
         Roots = new RootsCapability(),
-        Elicitation = new ElicitationCapability(),
+        Elicitation = new ElicitationCapability
+        {
+          Form = new FormElicitationCapability(),
+          Url = new UrlElicitationCapability(),
+        },
       };
     });
     services.AddKeyedScoped("mcpClientOptions", (services, obj) =>
@@ -43,7 +48,7 @@ internal static partial class Builder
       {
         Capabilities = services.GetRequiredKeyedService<ClientCapabilities>("fullClientCaps"),
         ClientInfo = new Implementation { Name = "BlazorClient", Version = "0.1.0" },
-        Handlers = SamplingHandlerFactory.Create(services),
+        Handlers = ClientHandlerFactory.Create(services),
       };
     });
     

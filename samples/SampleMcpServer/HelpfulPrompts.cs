@@ -1,5 +1,6 @@
 using McpCapabilities.Server;
 
+using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
 namespace SampleMcpServer;
@@ -11,10 +12,28 @@ public class HelpfulPrompts
   [RequiredClientCapabilities(
       Required = CapabilityFlag.Elicitation,
       Message = "Requires user elicitation support")]
-  public string ConfirmAction()
+  public async Task<string> ConfirmAction(
+      McpServer server,
+      CancellationToken cancellationToken)
   {
-    return "Ask the user to confirm the action before proceeding. "
-        + "If they decline, explain the consequences and ask again.";
+    var result = await server.ElicitAsync(
+        new ElicitRequestParams
+        {
+          Message = "Do you want to proceed with this action?",
+          RequestedSchema = new ElicitRequestParams.RequestSchema
+          {
+            Properties = new Dictionary<string, ElicitRequestParams.PrimitiveSchemaDefinition>
+            {
+              ["value"] = new ElicitRequestParams.StringSchema(),
+            },
+          },
+        },
+        cancellationToken: cancellationToken);
+
+    if (result.IsAccepted)
+      return "The user confirmed. Proceed with the action confidently.";
+
+    return "The user declined. Politely explain why the action is still needed and ask again.";
   }
 
   [McpServerPrompt]

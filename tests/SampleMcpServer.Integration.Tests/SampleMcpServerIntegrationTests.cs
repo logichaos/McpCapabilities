@@ -66,7 +66,7 @@ public class SampleMcpServerIntegrationTests
     var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
 
     await Assert.That(options.ToolCollection).IsNotNull();
-    await Assert.That(options.ToolCollection!).Count().IsEqualTo(2);
+    await Assert.That(options.ToolCollection!).Count().IsEqualTo(4);
     await Assert.That(options.PromptCollection).IsNotNull();
     await Assert.That(options.PromptCollection!).Count().IsEqualTo(2);
     await Assert.That(options.ResourceCollection).IsNotNull();
@@ -126,7 +126,7 @@ public class SampleMcpServerIntegrationTests
   }
 
   [Test]
-  public async Task FilterByClientCapabilities_Tools_FullClientSeesBoth()
+  public async Task FilterByClientCapabilities_Tools_FullClientSeesAll()
   {
     var sp = BuildServer(withGating: false);
     var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
@@ -137,11 +137,12 @@ public class SampleMcpServerIntegrationTests
     var clientCaps = new ClientCapabilities
     {
       Sampling = new SamplingCapability(),
+      Elicitation = new ElicitationCapability(),
     };
 
     var result = protools.FilterByClientCapabilities(clientCaps);
     await Assert.That(result.IsSuccess).IsTrue();
-    await Assert.That(result.Value).Count().IsEqualTo(2);
+    await Assert.That(result.Value).Count().IsEqualTo(4);
   }
 
   [Test]

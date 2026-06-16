@@ -1,0 +1,193 @@
+@using BlazorClient.Infrastructure
+@using ModelContextProtocol.Protocol
+@inject ElicitationPopupService Popup
+
+@if (Popup.IsVisible)
+{
+  var schema = Popup.CurrentRequest?.RequestedSchema;
+
+  <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Elicitation Request</h5>
+        </div>
+        <div class="modal-body">
+          @if (!string.IsNullOrEmpty(Popup.CurrentRequest?.Message))
+          {
+            <div class="alert alert-info">@Popup.CurrentRequest?.Message</div>
+          }
+
+          @if (schema?.Properties is { Count: > 0 } props)
+          {
+            @foreach (var (name, def) in props)
+            {
+              var isRequired = schema.Required?.Contains(name) == true;
+              var label = def.Title ?? def.Description ?? name;
+
+              <div class="mb-3">
+                <label class="form-label fw-bold">@label@(isRequired ? " *" : "")</label>
+                @if (!string.IsNullOrEmpty(def.Description) && def.Title != def.Description)
+                {
+                  <div class="form-text">@def.Description</div>
+                }
+
+                @switch (def)
+                {
+                  case ElicitRequestParams.StringSchema:
+                    <input type="text" class="form-control"
+                           value="@GetString(name)" @oninput="(e) => SetValue(name, e.Value?.ToString())" />
+                    break;
+
+                  case ElicitRequestParams.NumberSchema num:
+                    <input type="number" class="form-control"
+                           value="@GetString(name)" @oninput="(e) => SetValue(name, e.Value?.ToString())"
+                           min="@num.Minimum?.ToString()" max="@num.Maximum?.ToString()" step="any" />
+                    break;
+
+                  case ElicitRequestParams.BooleanSchema:
+                    <div class="form-check">
+                      <input type="checkbox" class="form-check-input" id="@name"
+                             checked="@GetBool(name)"
+                             @onchange="(e) => SetValue(name, (bool)e.Value!)" />
+                    </div>
+                    break;
+
+                  case ElicitRequestParams.UntitledSingleSelectEnumSchema en:
+                    <select class="form-select"
+                            value="@GetString(name)" @onchange="(e) => SetValue(name, e.Value?.ToString())">
+                      <option value="">-- select --</option>
+                      @foreach (var item in en.Enum)
+                      {
+                        <option value="@item">@item</option>
+                      }
+                    </select>
+                    break;
+
+                  case ElicitRequestParams.TitledSingleSelectEnumSchema ten:
+                    <select class="form-select"
+                            value="@GetString(name)" @onchange="(e) => SetValue(name, e.Value?.ToString())">
+                      <option value="">-- select --</option>
+                      @foreach (var opt in ten.OneOf)
+                      {
+                        <option value="@opt.Const">@opt.Title</option>
+                      }
+                    </select>
+                    break;
+
+                  case ElicitRequestParams.UntitledMultiSelectEnumSchema multi:
+                    <div class="border rounded p-2">
+                      @foreach (var item in multi.Items.Enum)
+                      {
+                        <div class="form-check">
+                          <input type="checkbox" class="form-check-input" id="@($"{name}_{item}")"
+                                 checked="@IsSelected(name, item)"
+                                 @onchange="(e) => ToggleMulti(name, item, (bool)e.Value!)" />
+                          <label class="form-check-label" for="@($"{name}_{item}")">@item</label>
+                        </div>
+                      }
+                    </div>
+                    break;
+
+                  default:
+                    <input type="text" class="form-control"
+                           value="@GetString(name)" @oninput="(e) => SetValue(name, e.Value?.ToString())" />
+                    break;
+                }
+              </div>
+            }
+          }
+          else
+          {
+            <div class="mb-3">
+              <label class="form-label fw-bold">Response</label>
+              <textarea @bind="_freeform" class="form-control" rows="4"
+                        placeholder="Type your response..."></textarea>
+            </div>
+          }
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @onclick="Decline">Decline</button>
+          <button class="btn btn-primary" @onclick="Submit">Submit</button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+@code {
+  private readonly Dictionary<string, object> _values = new();
+  private string _freeform = "";
+
+  protected override void OnInitialized()
+  {
+    Popup.OnChanged += () => InvokeAsync(StateHasChanged);
+  }
+
+  private string GetString(string key) =>
+      _values.TryGetValue(key, out var v) ? v?.ToString() ?? "" : "";
+
+  private bool GetBool(string key) =>
+      _values.TryGetValue(key, out var v) && v is true;
+
+  private bool IsSelected(string key, string item)
+  {
+    if (_values.TryGetValue(key, out var v) && v is List<string> list)
+      return list.Contains(item);
+    return false;
+  }
+
+  private void ToggleMulti(string key, string item, bool isChecked)
+  {
+    if (!_values.TryGetValue(key, out var v) || v is not List<string> list)
+    {
+      list = new List<string>();
+      _values[key] = list;
+    }
+
+    if (isChecked)
+    {
+      if (!list.Contains(item))
+        list.Add(item);
+    }
+    else
+    {
+      list.Remove(item);
+    }
+  }
+
+  private void SetValue(string key, object? value)
+  {
+    if (value is not null)
+      _values[key] = value;
+    else
+      _values.Remove(key);
+  }
+
+  private void Submit()
+  {
+    var schema = Popup.CurrentRequest?.RequestedSchema;
+
+    if (schema?.Properties is { Count: > 0 })
+    {
+      Popup.Submit(new Dictionary<string, object>(_values));
+    }
+    else
+    {
+      var content = new Dictionary<string, object>();
+      if (!string.IsNullOrWhiteSpace(_freeform))
+        content["value"] = _freeform;
+      Popup.Submit(content);
+    }
+
+    _values.Clear();
+    _freeform = "";
+  }
+
+  private void Decline()
+  {
+    Popup.Decline();
+    _values.Clear();
+    _freeform = "";
+  }
+}

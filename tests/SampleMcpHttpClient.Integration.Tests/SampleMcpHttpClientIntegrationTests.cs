@@ -80,9 +80,9 @@ public class SampleMcpHttpClientIntegrationTests : IAsyncDisposable
 
     var tools = await client.ListToolsAsync();
 
-    await Assert.That(tools.Count).IsEqualTo(2);
+    await Assert.That(tools.Count).IsEqualTo(4);
     await Assert.That(tools.Select(t => t.Name).ToList())
-        .IsEquivalentTo(["ai_summarize", "echo"]);
+        .IsEquivalentTo(["ai_choose", "ai_elicit", "ai_summarize", "echo"]);
   }
 
   [Test]
