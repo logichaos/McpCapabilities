@@ -1,5 +1,7 @@
 using System.Reflection;
 
+using FakeItEasy;
+
 using McpCapabilities.Server;
 
 using ModelContextProtocol.Server;
@@ -57,14 +59,16 @@ public class SampleServerAiToolsTests
   }
 
   [Test]
-  public async Task AiSummarize_ReturnsString()
+  public async Task AiSummarize_NoSamplingCapability_ReturnsFallbackMessage()
   {
     var tools = new AiTools();
+    var server = A.Fake<McpServer>();
+    A.CallTo(() => server.ClientCapabilities).Returns(null);
+    using var cts = new CancellationTokenSource();
 
-    var result = tools.AiSummarize("hello");
+    var result = await tools.AiSummarize(server, "hello", cts.Token);
 
-    await Assert.That(result).IsNotNull();
-    await Assert.That(result).Contains("hello");
+    await Assert.That(result).IsEqualTo("Client does not support sampling.");
   }
 
   [Test]
@@ -82,9 +86,11 @@ public class SampleServerAiToolsTests
   {
     var method = typeof(AiTools).GetMethod(nameof(AiTools.AiSummarize))!;
 
-    await Assert.That(method.ReturnType).IsEqualTo(typeof(string));
-    await Assert.That(method.GetParameters()).Count().IsEqualTo(1);
-    await Assert.That(method.GetParameters()[0].ParameterType).IsEqualTo(typeof(string));
+    await Assert.That(method.ReturnType).IsEqualTo(typeof(Task<string>));
+    await Assert.That(method.GetParameters()).Count().IsEqualTo(3);
+    await Assert.That(method.GetParameters()[0].ParameterType).IsEqualTo(typeof(McpServer));
+    await Assert.That(method.GetParameters()[1].ParameterType).IsEqualTo(typeof(string));
+    await Assert.That(method.GetParameters()[2].ParameterType).IsEqualTo(typeof(CancellationToken));
   }
 
   [Test]

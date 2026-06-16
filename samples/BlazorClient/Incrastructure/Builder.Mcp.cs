@@ -1,11 +1,14 @@
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
+
 namespace BlazorClient.Infrastructure;
 
 internal static partial class Builder
 {
   public static IServiceCollection AddMcp(this IServiceCollection services, IConfiguration configuration)
   {
+    services.AddScoped<SamplingPopupService>();
+
     services.AddKeyedScoped("httpOptions", (services, obj) =>
     {
       HttpClientTransportOptions options = new()
@@ -40,6 +43,7 @@ internal static partial class Builder
       {
         Capabilities = services.GetRequiredKeyedService<ClientCapabilities>("fullClientCaps"),
         ClientInfo = new Implementation { Name = "BlazorClient", Version = "0.1.0" },
+        Handlers = SamplingHandlerFactory.Create(services),
       };
     });
     

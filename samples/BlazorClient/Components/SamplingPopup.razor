@@ -1,0 +1,60 @@
+@using BlazorClient.Infrastructure
+@using ModelContextProtocol.Protocol
+@inject SamplingPopupService Popup
+
+@if (Popup.IsVisible)
+{
+  <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">LLM Sampling Request</h5>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted">The server is requesting an LLM response. Enter your reply below:</p>
+
+          @if (Popup.CurrentRequest?.Messages is { } messages)
+          {
+            <div class="mb-3">
+              <strong>Prompt:</strong>
+              @foreach (var msg in messages)
+              {
+                <pre class="bg-light p-2 mt-1" style="max-height:200px;overflow-y:auto;white-space:pre-wrap">@(msg.Content.OfType<TextContentBlock>().FirstOrDefault()?.Text ?? "(no text)")</pre>
+              }
+            </div>
+          }
+
+          <div class="mb-3">
+            <label class="form-label"><strong>Your response:</strong></label>
+            <textarea @bind="_response" class="form-control" rows="5" placeholder="Type your response to send back to the server..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+          <button class="btn btn-primary" @onclick="Submit">Submit</button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+@code {
+  private string _response = "";
+
+  protected override void OnInitialized()
+  {
+    Popup.OnChanged += () => InvokeAsync(StateHasChanged);
+  }
+
+  private void Submit()
+  {
+    Popup.Submit(string.IsNullOrWhiteSpace(_response) ? "(empty response)" : _response);
+    _response = "";
+  }
+
+  private void Cancel()
+  {
+    Popup.Cancel();
+    _response = "";
+  }
+}
