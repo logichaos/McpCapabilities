@@ -3,5 +3,7 @@
     "version": "10.0.300",
     "rollForward": "latestMajor"
   },
-  "test": { "runner": "Microsoft.Testing.Platform" }
+  "test": {
+    "runner": "Microsoft.Testing.Platform"
+  }
 }

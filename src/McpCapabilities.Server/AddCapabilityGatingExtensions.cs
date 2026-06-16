@@ -42,9 +42,14 @@ public static class AddCapabilityGatingExtensions
 
     public void Configure(McpServerOptions options)
     {
-      // Capture capability requirements from all registered primitives.
-      // This runs after all WithTools/WithPrompts/WithResources configure options
-      // have populated the collections, ensuring Meta is written before we snapshot.
+      CaptureAndNotifyRequirements(options);
+      BuildAndWrapHandlers(options);
+      BuildDispatchHandlers(options);
+      ClearCollections(options);
+    }
+
+    private void CaptureAndNotifyRequirements(McpServerOptions options)
+    {
       if (options.ToolCollection is not null)
       {
         foreach (var tool in options.ToolCollection)
@@ -58,6 +63,7 @@ public static class AddCapabilityGatingExtensions
           }
         }
       }
+
       if (options.PromptCollection is not null)
       {
         foreach (var prompt in options.PromptCollection)
@@ -71,6 +77,7 @@ public static class AddCapabilityGatingExtensions
           }
         }
       }
+
       if (options.ResourceCollection is not null)
       {
         foreach (var resource in options.ResourceCollection)
@@ -84,38 +91,30 @@ public static class AddCapabilityGatingExtensions
           }
         }
       }
+    }
 
+    private void BuildAndWrapHandlers(McpServerOptions options)
+    {
       static CapabilityFlag GetClientFlags<TParams>(RequestContext<TParams> request)
       {
         return CapabilityFlags.FromClientCapabilities(request.Server?.ClientCapabilities);
       }
 
-      // Build handlers that produce the full list from registered collections.
-      // These serve as the "inner" handlers that the filtering wrappers wrap.
-      McpRequestHandler<ListToolsRequestParams, ListToolsResult> listToolsInner = default!;
-      McpRequestHandler<ListPromptsRequestParams, ListPromptsResult> listPromptsInner = default!;
-      McpRequestHandler<ListResourcesRequestParams, ListResourcesResult> listResourcesInner = default!;
-
-      // Capture the collections at configure time (they won't change afterward).
       var serverTools = options.ToolCollection?.ToList() ?? [];
-      var toolList = serverTools.Select(t => t.ProtocolTool).ToList();
       var serverPrompts = options.PromptCollection?.ToList() ?? [];
-      var promptList = serverPrompts.Select(p => p.ProtocolPrompt).ToList();
       var serverResources = options.ResourceCollection?.ToList() ?? [];
+
+      var toolList = serverTools.Select(t => t.ProtocolTool).ToList();
+      var promptList = serverPrompts.Select(p => p.ProtocolPrompt).ToList();
       var resourceList = serverResources
           .Select(r => r.ProtocolResource)
           .OfType<Resource>()
           .ToList();
 
-      listToolsInner = (_, _) =>
-          ValueTask.FromResult(new ListToolsResult { Tools = toolList });
-      listPromptsInner = (_, _) =>
-          ValueTask.FromResult(new ListPromptsResult { Prompts = promptList });
-      listResourcesInner = (_, _) =>
-          ValueTask.FromResult(new ListResourcesResult { Resources = resourceList });
+      var listToolsInner = BuildInnerListToolsHandler(toolList);
+      var listPromptsInner = BuildInnerListPromptsHandler(promptList);
+      var listResourcesInner = BuildInnerListResourcesHandler(resourceList);
 
-      // Wrap the collection-producing handlers with capability filtering.
-      // Also chain any existing user-provided handler (appended to the list).
       var existingListTools = options.Handlers.ListToolsHandler;
       var existingListPrompts = options.Handlers.ListPromptsHandler;
       var existingListResources = options.Handlers.ListResourcesHandler;
@@ -137,9 +136,14 @@ public static class AddCapabilityGatingExtensions
               ? CombineHandlers(listResourcesInner, existingListResources)
               : listResourcesInner,
           GetClientFlags);
+    }
 
-      // Build a CallToolHandler that dispatches to the captured server tools,
-      // since clearing ToolCollection below removes the SDK's default dispatch.
+    private void BuildDispatchHandlers(McpServerOptions options)
+    {
+      var serverTools = options.ToolCollection?.ToList() ?? [];
+      var serverPrompts = options.PromptCollection?.ToList() ?? [];
+      var serverResources = options.ResourceCollection?.ToList() ?? [];
+
       var toolLookup = serverTools.ToDictionary(t => t.ProtocolTool.Name);
       var existingCallTool = options.Handlers.CallToolHandler;
 
@@ -159,9 +163,6 @@ public static class AddCapabilityGatingExtensions
             McpErrorCode.InvalidParams);
       };
 
-      // Build GetPromptHandler and ReadResourceHandler to dispatch to captured
-      // server prompts/resources, since clearing the collections below removes
-      // the SDK's default dispatch.
       var promptLookup = serverPrompts.ToDictionary(p => p.ProtocolPrompt.Name);
       var existingGetPrompt = options.Handlers.GetPromptHandler;
 
@@ -199,12 +200,26 @@ public static class AddCapabilityGatingExtensions
             $"Unknown resource URI: '{request.Params?.Uri}'",
             McpErrorCode.InvalidParams);
       };
+    }
 
-      // Clear collections so the SDK serves only from our filtered handlers.
+    private static void ClearCollections(McpServerOptions options)
+    {
       options.ToolCollection = null;
       options.PromptCollection = null;
       options.ResourceCollection = null;
     }
+
+    private static McpRequestHandler<ListToolsRequestParams, ListToolsResult>
+        BuildInnerListToolsHandler(List<Tool> tools) =>
+        (_, _) => ValueTask.FromResult(new ListToolsResult { Tools = tools });
+
+    private static McpRequestHandler<ListPromptsRequestParams, ListPromptsResult>
+        BuildInnerListPromptsHandler(List<Prompt> prompts) =>
+        (_, _) => ValueTask.FromResult(new ListPromptsResult { Prompts = prompts });
+
+    private static McpRequestHandler<ListResourcesRequestParams, ListResourcesResult>
+        BuildInnerListResourcesHandler(List<Resource> resources) =>
+        (_, _) => ValueTask.FromResult(new ListResourcesResult { Resources = resources });
 
     private static McpRequestHandler<TParams, ListToolsResult> CombineHandlers<TParams>(
         McpRequestHandler<TParams, ListToolsResult> first,
