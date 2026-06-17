@@ -42,7 +42,7 @@ jobs:
           reportgenerator \
             -reports:"artifacts/TestResults/*.cobertura.xml" \
             -targetdir:"artifacts/coverage_report" \
-            -reporttypes:"Markdown;Cobertura" \
+            -reporttypes:"MarkdownSummary;Cobertura" \
             -assemblyfilters:"-*SampleMcp*;-*BlazorClient*" \
             -filefilters:"-*Program.cs"
 
