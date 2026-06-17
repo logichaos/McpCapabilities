@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  code-quality: write
+  discussions: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Run tests with coverage
+        run: |
+          dotnet test McpCapabilities.slnx \
+            --configuration Release \
+            --results-directory artifacts/TestResults \
+            --coverage \
+            --coverage-output-format cobertura \
+            --report-trx
+#            --report-trx-filename test-results.trx
+
+      - name: Generate Coverage Reports
+        if: always()
+        run: |
+          dotnet tool install -g dotnet-reportgenerator-globaltool
+          
+          reportgenerator \
+            -reports:"artifacts/TestResults/*.cobertura.xml" \
+            -targetdir:"artifacts/coverage_report" \
+            -reporttypes:"Markdown;Cobertura" \
+            -assemblyfilters:"-*SampleMcp*;-*BlazorClient*" \
+            -filefilters:"-*Program.cs"
+
+      - name: Write Coverage Report to Summary
+        run: cat artifacts/coverage_report/Summary.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Check coverage threshold
+        if: always()
+        run: |
+          grep -oP 'line-rate="\K[^"]*' artifacts/coverage_report/Cobertura.xml \
+            | head -1 \
+            | awk '{
+                pct = $1 * 100
+                printf "Line coverage: %.1f%%\n", pct
+                if ($1 < 0.90) {
+                    printf "ERROR: Coverage %.1f%% is below the 90%% threshold\n", pct
+                    exit 1
+                }
+                print "Coverage meets the 90% threshold"
+              }'

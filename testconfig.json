@@ -1,0 +1,23 @@
+{
+  "Configuration":{
+    "Format": "cobertura",
+    "CodeCoverage":{
+      "Attributes": {
+        "Exclude": [
+          "^System\\.Diagnostics\\.DebuggerHiddenAttribute$",
+          "^System\\.Diagnostics\\.DebuggerNonUserCodeAttribute$",
+          "^System\\.CodeDom\\.Compiler\\.GeneratedCodeAttribute$",
+          "^System\\.Diagnostics\\.CodeAnalysis\\.ExcludeFromCodeCoverageAttribute$"
+        ]
+      },
+      "Sources": {
+        "Exclude": [
+          ".*\\\\samples\\\\.*",
+          ".*\\\\tests\\\\.*",
+          ".*\\\\artifacts\\\\.*",
+          ".*\\\\Program.cs"
+        ]
+      }
+    }
+  }
+}

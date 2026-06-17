@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - run: ./scripts/pack.sh
+
+      - name: Get package version
+        id: version
+        run: |
+          PKG=$(ls artifacts/package/release/*.nupkg | head -1)
+          VER=$(basename "$PKG" | sed 's/McpCapabilities.Server\.//;s/\.nupkg//')
+          echo "version=$VER" >> $GITHUB_OUTPUT
+          echo "package=$PKG" >> $GITHUB_OUTPUT
+          echo "Version: $VER"
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
+          files: ${{ steps.version.outputs.package }}
+          generate_release_notes: true
