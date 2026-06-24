@@ -21,6 +21,9 @@ var transport = builder.Configuration.GetValue<string>("MCP:Transport") ?? "stdi
 var isHttp = transport is "http" or "both";
 var isStdio = transport is "stdio" or "both";
 
+builder.Services.Configure<CapabilityGatingOptions>(
+    builder.Configuration.GetSection("CapabilityGating"));
+
 var mcpBuilder = builder.Services.AddMcpServer(options =>
 {
   options.ServerInfo = new Implementation

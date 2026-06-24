@@ -11,6 +11,14 @@ namespace Microsoft.Extensions.DependencyInjection;
 
 public class CapabilityGatingOptions
 {
+  /// <summary>
+  /// When false (default), clients that send no ClientCapabilities object at all are subject to
+  /// capability gating. Set to true to allow those clients to bypass gating and see all primitives.
+  ///
+  /// Can be configured via appsettings: { "CapabilityGating": { "AllowWhenClientCapabilitiesNotProvided": true } }
+  /// </summary>
+  public bool AllowWhenClientCapabilitiesNotProvided { get; set; } = false;
+
   public Action<McpServerTool, ClientCapabilityRequirements>? OnToolRequirements { get; set; }
   public Action<McpServerPrompt, ClientCapabilityRequirements>? OnPromptRequirements { get; set; }
   public Action<McpServerResource, ClientCapabilityRequirements>? OnResourceRequirements { get; set; }
@@ -22,11 +30,14 @@ public static class AddCapabilityGatingExtensions
       this IMcpServerBuilder builder,
       Action<CapabilityGatingOptions>? configureOptions = null)
   {
-    var gatingOptions = new CapabilityGatingOptions();
-    configureOptions?.Invoke(gatingOptions);
+    builder.Services.AddOptions<CapabilityGatingOptions>();
 
-    builder.Services.AddSingleton<IConfigureOptions<McpServerOptions>>(
-        new CapabilityGatingConfigureOptions(gatingOptions));
+    if (configureOptions is not null)
+      builder.Services.Configure(configureOptions);
+
+    builder.Services.AddSingleton<IConfigureOptions<McpServerOptions>>(sp =>
+        new CapabilityGatingConfigureOptions(
+            sp.GetRequiredService<IOptions<CapabilityGatingOptions>>()));
 
     return builder;
   }
@@ -35,9 +46,9 @@ public static class AddCapabilityGatingExtensions
   {
     private readonly CapabilityGatingOptions _gatingOptions;
 
-    public CapabilityGatingConfigureOptions(CapabilityGatingOptions gatingOptions)
+    public CapabilityGatingConfigureOptions(IOptions<CapabilityGatingOptions> options)
     {
-      _gatingOptions = gatingOptions;
+      _gatingOptions = options.Value;
     }
 
     public void Configure(McpServerOptions options)
@@ -95,10 +106,8 @@ public static class AddCapabilityGatingExtensions
 
     private void BuildAndWrapHandlers(McpServerOptions options)
     {
-      static CapabilityFlag GetClientFlags<TParams>(RequestContext<TParams> request)
-      {
-        return CapabilityFlags.FromClientCapabilities(request.Server?.ClientCapabilities);
-      }
+      static ClientCapabilities? GetClientCaps<TParams>(RequestContext<TParams> request)
+          => request.Server?.ClientCapabilities;
 
       var serverTools = options.ToolCollection?.ToList() ?? [];
       var serverPrompts = options.PromptCollection?.ToList() ?? [];
@@ -119,23 +128,28 @@ public static class AddCapabilityGatingExtensions
       var existingListPrompts = options.Handlers.ListPromptsHandler;
       var existingListResources = options.Handlers.ListResourcesHandler;
 
+      var allow = _gatingOptions.AllowWhenClientCapabilitiesNotProvided;
+
       options.Handlers.ListToolsHandler = CapabilityFilteringHandlers.WrapListTools(
           existingListTools is not null
               ? CombineHandlers(listToolsInner, existingListTools)
               : listToolsInner,
-          GetClientFlags);
+          GetClientCaps,
+          allow);
 
       options.Handlers.ListPromptsHandler = CapabilityFilteringHandlers.WrapListPrompts(
           existingListPrompts is not null
               ? CombineHandlers(listPromptsInner, existingListPrompts)
               : listPromptsInner,
-          GetClientFlags);
+          GetClientCaps,
+          allow);
 
       options.Handlers.ListResourcesHandler = CapabilityFilteringHandlers.WrapListResources(
           existingListResources is not null
               ? CombineHandlers(listResourcesInner, existingListResources)
               : listResourcesInner,
-          GetClientFlags);
+          GetClientCaps,
+          allow);
     }
 
     private void BuildDispatchHandlers(McpServerOptions options)
@@ -143,6 +157,8 @@ public static class AddCapabilityGatingExtensions
       var serverTools = options.ToolCollection?.ToList() ?? [];
       var serverPrompts = options.PromptCollection?.ToList() ?? [];
       var serverResources = options.ResourceCollection?.ToList() ?? [];
+
+      var allow = _gatingOptions.AllowWhenClientCapabilitiesNotProvided;
 
       var toolLookup = serverTools.ToDictionary(t => t.ProtocolTool.Name);
       var existingCallTool = options.Handlers.CallToolHandler;
@@ -152,6 +168,15 @@ public static class AddCapabilityGatingExtensions
         if (request.Params?.Name is { } toolName &&
             toolLookup.TryGetValue(toolName, out var serverTool))
         {
+          var clientCaps = request.Server?.ClientCapabilities;
+          var reqs = serverTool.GetCapabilityRequirements();
+          if (!CapabilityFlags.IsAllowed(reqs.Required, clientCaps, allow))
+          {
+            var missing = reqs.Required & ~CapabilityFlags.FromClientCapabilities(clientCaps);
+            throw new McpProtocolException(
+                reqs.Message ?? $"Client missing capabilities to call '{toolName}': {missing}",
+                McpErrorCode.InvalidRequest);
+          }
           return await serverTool.InvokeAsync(request, ct);
         }
 
@@ -171,6 +196,15 @@ public static class AddCapabilityGatingExtensions
         if (request.Params?.Name is { } promptName &&
             promptLookup.TryGetValue(promptName, out var serverPrompt))
         {
+          var clientCaps = request.Server?.ClientCapabilities;
+          var reqs = serverPrompt.GetCapabilityRequirements();
+          if (!CapabilityFlags.IsAllowed(reqs.Required, clientCaps, allow))
+          {
+            var missing = reqs.Required & ~CapabilityFlags.FromClientCapabilities(clientCaps);
+            throw new McpProtocolException(
+                reqs.Message ?? $"Client missing capabilities to get '{promptName}': {missing}",
+                McpErrorCode.InvalidRequest);
+          }
           return await serverPrompt.GetAsync(request, ct);
         }
 
@@ -190,6 +224,15 @@ public static class AddCapabilityGatingExtensions
         if (request.Params?.Uri is { } uri &&
             resourceLookup.TryGetValue(uri, out var serverResource))
         {
+          var clientCaps = request.Server?.ClientCapabilities;
+          var reqs = serverResource.GetCapabilityRequirements();
+          if (!CapabilityFlags.IsAllowed(reqs.Required, clientCaps, allow))
+          {
+            var missing = reqs.Required & ~CapabilityFlags.FromClientCapabilities(clientCaps);
+            throw new McpProtocolException(
+                reqs.Message ?? $"Client missing capabilities to read '{uri}': {missing}",
+                McpErrorCode.InvalidRequest);
+          }
           return await serverResource.ReadAsync(request, ct);
         }
 

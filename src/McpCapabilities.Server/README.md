@@ -1,6 +1,6 @@
 # McpCapabilities.Server
 
-Capability-gating library for MCP servers. Annotate your tools, prompts, and resources with `[RequiredClientCapabilities]` at compile time — the library automatically hides them from clients that don't advertise the required capabilities at runtime.
+Capability-gating library for MCP servers. Annotate your tools, prompts, and resources with `[RequiredClientCapabilities]` at compile time — the library automatically hides them from clients that don't advertise the required capabilities at runtime, and blocks invocations from clients that lack them.
 
 ## Installation
 
@@ -15,7 +15,7 @@ Dependencies: `ModelContextProtocol`, `FluentResults`.
 ```csharp
 using McpCapabilities.Server;
 
-// 1. Annotate your tools
+[McpServerToolType]
 public class MyTools
 {
     [McpServerTool]
@@ -27,13 +27,12 @@ public class MyTools
     public string Echo(string text) => text; // always visible
 }
 
-// 2. Register with capability capture
 services.AddMcpServer()
-    .WithCapabilityAwareTools<MyTools>()
+    .WithTools<MyTools>()
     .AddCapabilityGating();
 ```
 
-That's it. Clients without LLM sampling capability won't see the `Summarize` tool.
+Clients without LLM sampling capability won't see — or be able to invoke — the `Summarize` tool.
 
 ## High-Level Architecture
 
@@ -41,15 +40,16 @@ That's it. Clients without LLM sampling capability won't see the `Summarize` too
 graph LR
     subgraph "Compile Time / Registration"
         ATTR["[RequiredClientCapabilities] attribute on methods"]
-        CAPTURE["CapabilityCaptureConfigureOptions captures attributes"]
+        CAPTURE["AddCapabilityGating captures attributes"]
         STORE["Writes requirements into Protocol*.Meta as JSON"]
     end
 
     subgraph "Runtime / Per-Request"
         CLIENT["Client connects with ClientCapabilities"]
-        CONVERT["CapabilityFlags.FromClientCapabilities converts to CapabilityFlag bitmask"]
+        CONVERT["CapabilityFlags.IsAllowed checks bitmask"]
         WRAP["Handler wrappers filter list responses"]
-        RESPONSE["Filtered list returned to client"]
+        DISPATCH["Dispatch handlers enforce on invocation"]
+        RESPONSE["Filtered list / error returned to client"]
     end
 
     ATTR --> CAPTURE
@@ -58,13 +58,16 @@ graph LR
     STORE --> WRAP
     CONVERT --> WRAP
     WRAP --> RESPONSE
+    STORE --> DISPATCH
+    CONVERT --> DISPATCH
+    DISPATCH --> RESPONSE
 ```
 
 The library operates in two phases:
 
-1. **Registration phase** — attributes are captured from annotated methods and serialized into the protocol primitives' `Meta` JSON objects. No reflection is needed at request time.
+1. **Registration phase** — `AddCapabilityGating()` uses reflection *once* to read `[RequiredClientCapabilities]` from each method and serializes the requirements into the protocol primitives' `Meta` JSON objects. No reflection is needed at request time.
 
-2. **Request phase** — list handlers (`tools/list`, `prompts/list`, `resources/list`) are wrapped to filter out primitives whose capability requirements are not satisfied by the connected client.
+2. **Request phase** — list handlers (`tools/list`, `prompts/list`, `resources/list`) filter out primitives whose requirements the connected client does not satisfy. Dispatch handlers (`tools/call`, `prompts/get`, `resources/read`) enforce the same check and throw `McpProtocolException` if a client attempts to invoke a gated primitive they lack capability for.
 
 ## Data Flow
 
@@ -74,22 +77,20 @@ The library operates in two phases:
 sequenceDiagram
     participant User as Developer
     participant Attr as [RequiredClientCapabilities]
-    participant Bldr as WithCapabilityAwareTools
+    participant Bldr as WithTools / AddCapabilityGating
     participant Ext as McpServerPrimitiveCapabilityExtensions
     participant Meta as ProtocolTool.Meta
 
     User->>Attr: Places attribute on tool method
     Note over User,Attr: [RequiredClientCapabilities(Required = CapabilityFlag.Sampling)]
-    User->>Bldr: Calls .WithCapabilityAwareTools()
-    Bldr->>Bldr: Registers tools via .WithTools()
-    Bldr->>Bldr: Adds CapabilityCaptureConfigureOptions
+    User->>Bldr: Calls .WithTools<T>().AddCapabilityGating()
     Bldr->>Ext: On configure: tool.CaptureCapabilityRequirements()
     Ext->>Attr: Reads attribute via reflection (once)
     Ext->>Meta: Writes {"__mcp_capabilities_required": {"flags": "Sampling", "message": "..."}}
     Note over Meta: Zero-reflection reads from here on
 ```
 
-### Request Flow (with filtering)
+### Request Flow
 
 ```mermaid
 sequenceDiagram
@@ -104,20 +105,23 @@ sequenceDiagram
 
     Client->>Svr: tools/list
     Svr->>Gating: Wrapped handler invoked
-    Gating->>Gating: Extracts CapabilityFlag from request.Server.ClientCapabilities
-    Note over Gating: CapabilityFlags.FromClientCapabilities()
-
-    Gating->>Wrap: Calls inner handler to get full tool list
-    Wrap->>Meta: For each tool: ReadFromMeta(tool.Meta)
-    Note over Wrap: Bitmask check: (clientFlags & required) == required
-
+    Gating->>Gating: CapabilityFlags.IsAllowed() per tool
+    Wrap->>Meta: ReadFromMeta(tool.Meta)
     alt Client has required capabilities
         Wrap->>Svr: Include tool in response
     else Client lacks required capabilities
         Wrap->>Svr: Exclude tool from response
     end
-
     Svr->>Client: Filtered tool list
+
+    Client->>Svr: tools/call (gated tool)
+    Svr->>Gating: Dispatch handler invoked
+    Gating->>Gating: CapabilityFlags.IsAllowed() for named tool
+    alt Client has required capabilities
+        Gating->>Svr: Invoke tool
+    else Client lacks required capabilities
+        Gating->>Client: McpProtocolException (InvalidRequest)
+    end
 ```
 
 ## Core Concepts
@@ -142,6 +146,21 @@ A `[Flags]` enum representing all MCP client capabilities a server can gate on:
 
 Combine flags with bitwise OR: `CapabilityFlag.Sampling | CapabilityFlag.Elicitation`.
 
+### `CapabilityFlags.IsAllowed`
+
+The central allow/deny predicate used by all filtering and dispatch logic:
+
+```csharp
+bool IsAllowed(
+    CapabilityFlag required,
+    ClientCapabilities? clientCaps,
+    bool allowWhenNotProvided = true)
+```
+
+- Returns `true` when `required == None`.
+- When `clientCaps` is `null`, returns `allowWhenNotProvided`.
+- Otherwise performs `(clientFlags & required) == required`.
+
 ### Bitmask Satisfaction
 
 ```mermaid
@@ -161,28 +180,11 @@ graph TB
     end
 ```
 
-The check `(available & required) == required` ensures the client has *every* flag the tool needs. If any required flag is missing, the tool is hidden.
-
-### Two-Phase Lifecycle
-
-```mermaid
-stateDiagram-v2
-    [*] --> Annotated: "Developer adds <br/> [RequiredClientCapabilities]"
-    Annotated --> Captured: WithCapabilityAwareTools()
-    Captured --> Stored: "Requirements written to <br/> Protocol*.Meta"
-    Stored --> Filtered: Client requests list
-    Filtered --> Visible: Client has required <br/> capabilities
-    Filtered --> Hidden: Client lacks required <br/ > capabilities
-    Visible --> [*]
-    Hidden --> [*]
-```
-
 ## Usage Guide
 
-### Basic: Capability-Aware Tools
+### Gating tools
 
 ```csharp
-// Define your tool class
 [McpServerToolType]
 public class AITools
 {
@@ -190,43 +192,18 @@ public class AITools
     [RequiredClientCapabilities(
         Required = CapabilityFlag.Sampling | CapabilityFlag.Elicitation,
         Message = "This tool requires LLM sampling and user elicitation")]
-    public string AdvancedAnalysis(string input, IMcpServer server)
-    {
-        var sample = await server.RequestSamplingAsync(/* ... */);
-        var elicit = await server.RequestElicitationAsync(/* ... */);
-        return Process(sample, elicit);
-    }
+    public string AdvancedAnalysis(string input, IMcpServer server) => ...;
 
     [McpServerTool]
     [RequiredClientCapabilities(Required = CapabilityFlag.Sampling)]
-    public string Summarize(string text) => /* ... */;
+    public string Summarize(string text) => ...;
 
     [McpServerTool]
     public string Echo(string text) => text; // always visible
 }
-
-// In Program.cs / Startup
-services.AddMcpServer()
-    .WithCapabilityAwareTools<AITools>()
-    .AddCapabilityGating();
 ```
 
-### With Post-Registration Callback
-
-```csharp
-services.AddMcpServer()
-    .WithCapabilityAwareTools<MyTools>(configure: (tool, reqs) =>
-    {
-        // e.g., log or augment the tool
-        logger.LogInformation("Tool '{Name}' requires {Flags}",
-            tool.ProtocolTool.Name, reqs.Required);
-    })
-    .AddCapabilityGating();
-```
-
-### Prompts and Resources
-
-The same attribute works on prompts and resources:
+### Gating prompts and resources
 
 ```csharp
 [McpServerPromptType]
@@ -249,23 +226,84 @@ public class MyResources
 }
 ```
 
-### Advanced: Programmatic Filtering with FluentResults
+### Registration
 
-Use the FluentResults-based extension methods for custom filtering logic:
+```csharp
+services.AddMcpServer()
+    .WithTools<AITools>()
+    .WithPrompts<MyPrompts>()
+    .WithResources<MyResources>()
+    .AddCapabilityGating();
+```
+
+### Gating options
+
+`AddCapabilityGating` accepts an optional `CapabilityGatingOptions` callback:
+
+```csharp
+services.AddMcpServer()
+    .WithTools<AITools>()
+    .AddCapabilityGating(opts =>
+    {
+        // Allow clients that send no ClientCapabilities object at all to bypass gating.
+        // Default is false (those clients are gated).
+        opts.AllowWhenClientCapabilitiesNotProvided = true;
+
+        // Observe which tools have requirements (e.g. for startup logging)
+        opts.OnToolRequirements = (tool, reqs) =>
+            logger.LogInformation("Tool '{Name}' requires {Flags}", tool.ProtocolTool.Name, reqs.Required);
+    });
+```
+
+`CapabilityGatingOptions` participates in the standard .NET options system. You can pre-configure it (e.g., from `appsettings.json`) before calling `AddCapabilityGating`:
+
+```json
+{
+  "CapabilityGating": {
+    "AllowWhenClientCapabilitiesNotProvided": true
+  }
+}
+```
+
+```csharp
+services.Configure<CapabilityGatingOptions>(
+    configuration.GetSection("CapabilityGating"));
+
+services.AddMcpServer()
+    .WithTools<AITools>()
+    .AddCapabilityGating();
+```
+
+### Dispatch enforcement
+
+Gating blocks invocations, not just listings. When a client calls a gated tool they lack capability for, the dispatch handler throws `McpProtocolException` with `McpErrorCode.InvalidRequest`:
+
+```text
+Client missing capabilities to call 'summarize': Sampling
+```
+
+Set a custom `Message` on the attribute to replace the default error text:
+
+```csharp
+[RequiredClientCapabilities(
+    Required = CapabilityFlag.Sampling,
+    Message = "Connect an LLM to use this tool")]
+public string Summarize(string text) => ...;
+```
+
+The same enforcement applies to `GetPrompt` and `ReadResource`.
+
+### Programmatic filtering with FluentResults
 
 ```csharp
 using McpCapabilities.Server;
 using FluentResults;
-
-var tools = GetFullToolList();
-var clientCaps = GetConnectedClientCapabilities();
 
 var result = tools.FilterByClientCapabilities(clientCaps);
 
 result.Switch(
     success: visible =>
     {
-        Console.WriteLine($"Showing {visible.Count} tools");
         foreach (var tool in visible)
             Console.WriteLine($"  - {tool.Name}");
     },
@@ -278,13 +316,19 @@ result.Switch(
     });
 ```
 
-### Manual Checking
+Pass `allowWhenNotProvided: true` to match the opt-in permissive server behavior:
+
+```csharp
+var result = tools.FilterByClientCapabilities(clientCaps, allowWhenNotProvided: true);
+```
+
+### Manual checking
 
 ```csharp
 var clientFlags = CapabilityFlags.FromClientCapabilities(clientCapabilities);
 var reqs = ClientCapabilityRequirements.ReadFromMeta(tool.ProtocolTool.Meta);
 
-if (reqs.Required == CapabilityFlag.None || CapabilityFlags.IsSatisfied(reqs.Required, clientFlags))
+if (CapabilityFlags.IsSatisfied(reqs.Required, clientFlags))
 {
     // Client can use this tool
 }
@@ -305,31 +349,32 @@ graph TD
         HANDLERS[CapabilityFilteringHandlers]
     end
 
-    subgraph "DI Registration Extensions"
-        CAPTURE[WithCapabilityAwareTools&lt;T&gt;]
+    subgraph "DI Registration"
+        OPTS[CapabilityGatingOptions]
         GATING[AddCapabilityGating]
     end
 
     subgraph "Internal"
-        CAPTOPT[CapabilityCaptureConfigureOptions]
         GATEOPT[CapabilityGatingConfigureOptions]
     end
 
-    ATTR -->|captured by| CAPTURE
-    CAPTURE -->|uses| CAPTOPT
-    CAPTOPT -->|calls| PRIM
-    PRIM -->|writes/reads| REQS
+    ATTR -->|captured by| GATING
+    GATING -->|uses| OPTS
     GATING -->|uses| GATEOPT
+    GATEOPT -->|calls| PRIM
+    PRIM -->|writes/reads| REQS
     GATEOPT -->|calls| HANDLERS
     HANDLERS -->|reads via| REQS
+    HANDLERS -->|calls| FLAGS
     FLUENT -->|uses| REQS
+    FLUENT -->|calls| FLAGS
     FLAGS -->|converts ClientCapabilities| FLAG
     ERROR -->|carries| FLAG
 ```
 
 ## Error Handling
 
-When all tools/prompts/resources in a list are hidden, `FilterByClientCapabilities` returns a `Result.Fail` with a `CapabilityNotMetError`:
+When all primitives in a list are hidden, `FilterByClientCapabilities` returns a `Result.Fail` with a `CapabilityNotMetError`:
 
 ```csharp
 public class CapabilityNotMetError : Error
@@ -340,16 +385,6 @@ public class CapabilityNotMetError : Error
     public string Message { get; }             // human-readable description
 }
 ```
-
-The error also carries structured metadata (`RequiredFlags`, `MissingFlags`, `PrimitiveName`) for logging and diagnostics.
-
-## How It Works Under the Hood
-
-1. **Registration time** — `WithCapabilityAwareTools<T>()` uses reflection *once* to read `[RequiredClientCapabilities]` from each method and writes the requirements as JSON into the tool's `ProtocolTool.Meta` dictionary under the key `"__mcp_capabilities_required"`.
-
-2. **Request time** — `AddCapabilityGating()` wraps the `ListToolsHandler`, `ListPromptsHandler`, and `ListResourcesHandler` with filters. Each wrapper reads the connected client's `ClientCapabilities`, converts them to a `CapabilityFlag` bitmask, and filters the list by comparing each primitive's stored requirements against the client's flags.
-
-3. **Zero reflection at request time** — all requirement data is read from pre-populated `JsonObject` metadata, making per-request filtering fast and allocation-light.
 
 ## Framework Compatibility
 
