@@ -27,7 +27,7 @@ flowchart LR
 - I have created this repo on my journey to learn more about MCP in .net.
 - While working with the [csharp-sdk](https://github.com/modelcontextprotocol/csharp-sdk), I didn't find anything that works with the client capabilities, on the side of the server.
 - Since I am a strong believer that we should keep the context for your model as concise as possible, it bugged me that tools would be propagated to the client, even if the client couldn't make use of them, cluttering the context with descriptions that it doesn't need.
-- This is the result of me tinkering about to "filter" the output to the clients, depending on the capabilities that they advertise.
+- This is the result of me tinkering in sarch for a way to "filter" the output to the clients, depending on the capabilities that they advertise.
 
 ## Why?
 
@@ -244,6 +244,53 @@ builder.Services.AddMcpServer(options =>
     .WithPrompts<HelpfulPrompts>()
     .WithResources<WorkspaceResources>()
     .AddCapabilityGating();
+```
+
+### Gating options
+
+By default, clients that connect without sending any `ClientCapabilities` object are subject to capability gating. Set `AllowWhenClientCapabilitiesNotProvided = true` to allow those clients to bypass gating and see all primitives:
+
+```csharp
+builder.Services.AddMcpServer()
+    .WithTools<MyTools>()
+    .AddCapabilityGating(opts =>
+        opts.AllowWhenClientCapabilitiesNotProvided = true);
+```
+
+`CapabilityGatingOptions` participates in the standard .NET options system, so you can bind it from `appsettings.json` as well. Apply the configuration before calling `AddCapabilityGating`:
+
+```json
+{
+  "CapabilityGating": {
+    "AllowWhenClientCapabilitiesNotProvided": true
+  }
+}
+```
+
+```csharp
+builder.Services.Configure<CapabilityGatingOptions>(
+    builder.Configuration.GetSection("CapabilityGating"));
+
+builder.Services.AddMcpServer()
+    .WithTools<MyTools>()
+    .AddCapabilityGating();
+```
+
+### Dispatch enforcement
+
+Gating applies at **both** listing and invocation time. If a client calls a tool (or gets a prompt / reads a resource) they lack the capability for, the server throws `McpProtocolException` with `McpErrorCode.InvalidRequest`:
+
+```text
+Client missing capabilities to call 'summarize': Sampling
+```
+
+The optional `Message` property on `[RequiredClientCapabilities]` replaces the default error text:
+
+```csharp
+[RequiredClientCapabilities(
+    Required = CapabilityFlag.Sampling,
+    Message = "This tool requires LLM sampling support")]
+public string Summarize(string text) => ...;
 ```
 
 ### Programmatic filtering (FluentResults)

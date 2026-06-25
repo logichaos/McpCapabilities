@@ -220,7 +220,7 @@ public class AddCapabilityGatingHandlerInvocationTests
   }
 
   [Test]
-  public async Task Handler_NullClientCapabilities_OnlyUngatedPass()
+  public async Task Handler_NullClientCapabilities_GatesAnnotatedTools()
   {
     var sp = BuildWithGating();
     var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
@@ -237,9 +237,8 @@ public class AddCapabilityGatingHandlerInvocationTests
   [Test]
   public async Task Handler_GatedPrimitive_HasMetaWritten()
   {
-    // Verify that CaptureCapabilityRequirements ran during Configure
-    // by checking that the gated tool is filtered out when no capabilities
-    // are present. If Meta wasn't written, it would pass through unfiltered.
+    // Verify CaptureCapabilityRequirements ran during Configure: use a client with a real
+    // but wrong cap so gating kicks in. If Meta wasn't written the tool would pass through.
     var sp = BuildWithGating();
     var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
 
@@ -347,7 +346,6 @@ public class AddCapabilityGatingHandlerInvocationTests
     });
     var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
 
-    // Minimal client — only ungated tools + external should pass
     var context = CreateContext<ListToolsRequestParams>(new ClientCapabilities());
 
     var result = await options.Handlers.ListToolsHandler!(context, default);
@@ -357,5 +355,59 @@ public class AddCapabilityGatingHandlerInvocationTests
     await Assert.That(names).Contains("ungated_tool");
     await Assert.That(names).DoesNotContain("sampling_tool");
     await Assert.That(names).Count().IsEqualTo(2);
+  }
+
+  [Test]
+  public async Task AllowWhenNotProvided_True_NullCapabilities_ShowsAllTools()
+  {
+    var services = new ServiceCollection();
+    services.AddOptions();
+    services.Configure<McpServerOptions>(opt =>
+    {
+      opt.Handlers = new McpServerHandlers();
+      opt.ServerInfo = new Implementation { Name = "Test", Version = "1.0" };
+    });
+
+    services.AddMcpServer()
+        .WithTools<TestTools>()
+        .AddCapabilityGating(opts => opts.AllowWhenClientCapabilitiesNotProvided = true);
+
+    var sp = services.BuildServiceProvider();
+    var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
+
+    var context = CreateContext<ListToolsRequestParams>(null);
+    var result = await options.Handlers.ListToolsHandler!(context, default);
+    var names = result.Tools.Select(t => t.Name).ToList();
+
+    await Assert.That(names).IsEquivalentTo(["sampling_tool", "ungated_tool"]);
+  }
+
+  [Test]
+  public async Task AllowWhenNotProvided_True_ConfiguredViaPreRegisteredOptions_ShowsAllTools()
+  {
+    var services = new ServiceCollection();
+    services.AddOptions();
+    services.Configure<McpServerOptions>(opt =>
+    {
+      opt.Handlers = new McpServerHandlers();
+      opt.ServerInfo = new Implementation { Name = "Test", Version = "1.0" };
+    });
+
+    // Simulates appsettings binding applied before AddCapabilityGating is called
+    services.Configure<CapabilityGatingOptions>(opts =>
+        opts.AllowWhenClientCapabilitiesNotProvided = true);
+
+    services.AddMcpServer()
+        .WithTools<TestTools>()
+        .AddCapabilityGating();
+
+    var sp = services.BuildServiceProvider();
+    var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
+
+    var context = CreateContext<ListToolsRequestParams>(null);
+    var result = await options.Handlers.ListToolsHandler!(context, default);
+    var names = result.Tools.Select(t => t.Name).ToList();
+
+    await Assert.That(names).IsEquivalentTo(["sampling_tool", "ungated_tool"]);
   }
 }

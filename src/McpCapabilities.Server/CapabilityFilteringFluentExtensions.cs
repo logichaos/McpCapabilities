@@ -10,9 +10,9 @@ public static class CapabilityFilteringFluentExtensions
 {
   public static Result<IList<Tool>> FilterByClientCapabilities(
       this IList<Tool> tools,
-      ClientCapabilities? clientCaps)
+      ClientCapabilities? clientCaps,
+      bool allowWhenNotProvided = true)
   {
-    var clientFlags = CapabilityFlags.FromClientCapabilities(clientCaps);
     var visible = new List<Tool>();
     var hiddenCount = 0;
 
@@ -20,23 +20,19 @@ public static class CapabilityFilteringFluentExtensions
     {
       var reqs = ClientCapabilityRequirements.ReadFromMeta(tool.Meta);
 
-      if (reqs.Required == CapabilityFlag.None)
-      {
-        visible.Add(tool);
-      }
-      else if ((clientFlags & reqs.Required) == reqs.Required)
+      if (CapabilityFlags.IsAllowed(reqs.Required, clientCaps, allowWhenNotProvided))
       {
         visible.Add(tool);
       }
       else
       {
         hiddenCount++;
-        var missing = reqs.Required & ~clientFlags;
       }
     }
 
     if (visible.Count == 0 && hiddenCount > 0)
     {
+      var clientFlags = CapabilityFlags.FromClientCapabilities(clientCaps);
       var aggregatedRequired = tools
           .Select(t => ClientCapabilityRequirements.ReadFromMeta(t.Meta).Required)
           .Aggregate(CapabilityFlag.None, (acc, r) => acc | r);
@@ -56,9 +52,9 @@ public static class CapabilityFilteringFluentExtensions
 
   public static Result<IList<Prompt>> FilterByClientCapabilities(
       this IList<Prompt> prompts,
-      ClientCapabilities? clientCaps)
+      ClientCapabilities? clientCaps,
+      bool allowWhenNotProvided = true)
   {
-    var clientFlags = CapabilityFlags.FromClientCapabilities(clientCaps);
     var visible = new List<Prompt>();
     var hiddenCount = 0;
 
@@ -66,11 +62,7 @@ public static class CapabilityFilteringFluentExtensions
     {
       var reqs = ClientCapabilityRequirements.ReadFromMeta(prompt.Meta);
 
-      if (reqs.Required == CapabilityFlag.None)
-      {
-        visible.Add(prompt);
-      }
-      else if ((clientFlags & reqs.Required) == reqs.Required)
+      if (CapabilityFlags.IsAllowed(reqs.Required, clientCaps, allowWhenNotProvided))
       {
         visible.Add(prompt);
       }
@@ -82,6 +74,7 @@ public static class CapabilityFilteringFluentExtensions
 
     if (visible.Count == 0 && hiddenCount > 0)
     {
+      var clientFlags = CapabilityFlags.FromClientCapabilities(clientCaps);
       var aggregatedRequired = prompts
           .Select(p => ClientCapabilityRequirements.ReadFromMeta(p.Meta).Required)
           .Aggregate(CapabilityFlag.None, (acc, r) => acc | r);
@@ -101,9 +94,9 @@ public static class CapabilityFilteringFluentExtensions
 
   public static Result<IList<Resource>> FilterByClientCapabilities(
       this IList<Resource> resources,
-      ClientCapabilities? clientCaps)
+      ClientCapabilities? clientCaps,
+      bool allowWhenNotProvided = true)
   {
-    var clientFlags = CapabilityFlags.FromClientCapabilities(clientCaps);
     var visible = new List<Resource>();
     var hiddenCount = 0;
 
@@ -111,11 +104,7 @@ public static class CapabilityFilteringFluentExtensions
     {
       var reqs = ClientCapabilityRequirements.ReadFromMeta(resource.Meta);
 
-      if (reqs.Required == CapabilityFlag.None)
-      {
-        visible.Add(resource);
-      }
-      else if ((clientFlags & reqs.Required) == reqs.Required)
+      if (CapabilityFlags.IsAllowed(reqs.Required, clientCaps, allowWhenNotProvided))
       {
         visible.Add(resource);
       }
@@ -127,6 +116,7 @@ public static class CapabilityFilteringFluentExtensions
 
     if (visible.Count == 0 && hiddenCount > 0)
     {
+      var clientFlags = CapabilityFlags.FromClientCapabilities(clientCaps);
       var aggregatedRequired = resources
           .Select(r => ClientCapabilityRequirements.ReadFromMeta(r.Meta).Required)
           .Aggregate(CapabilityFlag.None, (acc, r) => acc | r);

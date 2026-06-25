@@ -70,6 +70,6 @@ The server listens on both stdio and HTTP simultaneously. A background task hand
 ## How it works
 
 1. `[RequiredClientCapabilities]` attributes are placed on tool/prompt/resource methods.
-2. `WithCapabilityAwareTools<T>()` captures tool capability requirements at registration time.
-3. `AddCapabilityGating()` captures all primitive requirements, builds filtered handlers, and enables request-time filtering based on the connected client's `ClientCapabilities`.
-4. When a client connects without required capabilities, gated primitives are silently hidden.
+2. `.WithTools<T>()` / `.WithPrompts<T>()` / `.WithResources<T>()` register the primitives with the MCP server.
+3. `AddCapabilityGating()` reads those attributes at startup, stores requirements in each primitive's metadata, and wraps the list and dispatch handlers to enforce gating per connected client.
+4. When a client connects without required capabilities, gated primitives are silently hidden from listings and blocked at invocation time.

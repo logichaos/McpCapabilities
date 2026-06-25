@@ -7,6 +7,16 @@ public static class CapabilityFlags
   public static bool IsSatisfied(CapabilityFlag required, CapabilityFlag available)
       => (available & required) == required;
 
+  public static bool IsAllowed(CapabilityFlag required, ClientCapabilities? clientCaps, bool allowWhenNotProvided = true)
+  {
+    if (required == CapabilityFlag.None)
+      return true;
+    if (clientCaps is null)
+      return allowWhenNotProvided;
+    var clientFlags = FromClientCapabilities(clientCaps);
+    return (clientFlags & required) == required;
+  }
+
   public static CapabilityFlag FromClientCapabilities(ClientCapabilities? caps)
   {
     if (caps is null)

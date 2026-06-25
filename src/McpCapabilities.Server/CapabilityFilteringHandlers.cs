@@ -7,7 +7,8 @@ public static class CapabilityFilteringHandlers
 {
   public static McpRequestHandler<ListToolsRequestParams, ListToolsResult> WrapListTools(
       McpRequestHandler<ListToolsRequestParams, ListToolsResult>? inner,
-      Func<RequestContext<ListToolsRequestParams>, CapabilityFlag> getClientCapabilityFlags)
+      Func<RequestContext<ListToolsRequestParams>, ClientCapabilities?> getClientCapabilities,
+      bool allowWhenClientCapabilitiesNotProvided = true)
   {
     return async (request, ct) =>
     {
@@ -15,22 +16,15 @@ public static class CapabilityFilteringHandlers
               ? await inner(request, ct)
               : new ListToolsResult { Tools = [] };
 
-      var clientFlags = getClientCapabilityFlags(request);
+      var clientCaps = getClientCapabilities(request);
 
       var filtered = new List<Tool>(fullResult.Tools.Count);
 
       foreach (var tool in fullResult.Tools)
       {
         var reqs = ClientCapabilityRequirements.ReadFromMeta(tool.Meta);
-
-        if (reqs.Required == CapabilityFlag.None)
-        {
+        if (CapabilityFlags.IsAllowed(reqs.Required, clientCaps, allowWhenClientCapabilitiesNotProvided))
           filtered.Add(tool);
-        }
-        else if ((clientFlags & reqs.Required) == reqs.Required)
-        {
-          filtered.Add(tool);
-        }
       }
 
       fullResult.Tools = filtered;
@@ -40,7 +34,8 @@ public static class CapabilityFilteringHandlers
 
   public static McpRequestHandler<ListPromptsRequestParams, ListPromptsResult> WrapListPrompts(
       McpRequestHandler<ListPromptsRequestParams, ListPromptsResult>? inner,
-      Func<RequestContext<ListPromptsRequestParams>, CapabilityFlag> getClientCapabilityFlags)
+      Func<RequestContext<ListPromptsRequestParams>, ClientCapabilities?> getClientCapabilities,
+      bool allowWhenClientCapabilitiesNotProvided = true)
   {
     return async (request, ct) =>
     {
@@ -48,14 +43,13 @@ public static class CapabilityFilteringHandlers
               ? await inner(request, ct)
               : new ListPromptsResult { Prompts = [] };
 
-      var clientFlags = getClientCapabilityFlags(request);
+      var clientCaps = getClientCapabilities(request);
 
       var filtered = fullResult.Prompts
               .Where(p =>
               {
                 var reqs = ClientCapabilityRequirements.ReadFromMeta(p.Meta);
-                return reqs.Required == CapabilityFlag.None
-                        || (clientFlags & reqs.Required) == reqs.Required;
+                return CapabilityFlags.IsAllowed(reqs.Required, clientCaps, allowWhenClientCapabilitiesNotProvided);
               })
               .ToList();
 
@@ -66,7 +60,8 @@ public static class CapabilityFilteringHandlers
 
   public static McpRequestHandler<ListResourcesRequestParams, ListResourcesResult> WrapListResources(
       McpRequestHandler<ListResourcesRequestParams, ListResourcesResult>? inner,
-      Func<RequestContext<ListResourcesRequestParams>, CapabilityFlag> getClientCapabilityFlags)
+      Func<RequestContext<ListResourcesRequestParams>, ClientCapabilities?> getClientCapabilities,
+      bool allowWhenClientCapabilitiesNotProvided = true)
   {
     return async (request, ct) =>
     {
@@ -74,14 +69,13 @@ public static class CapabilityFilteringHandlers
               ? await inner(request, ct)
               : new ListResourcesResult { Resources = [] };
 
-      var clientFlags = getClientCapabilityFlags(request);
+      var clientCaps = getClientCapabilities(request);
 
       var filtered = fullResult.Resources
               .Where(r =>
               {
                 var reqs = ClientCapabilityRequirements.ReadFromMeta(r.Meta);
-                return reqs.Required == CapabilityFlag.None
-                        || (clientFlags & reqs.Required) == reqs.Required;
+                return CapabilityFlags.IsAllowed(reqs.Required, clientCaps, allowWhenClientCapabilitiesNotProvided);
               })
               .ToList();
 

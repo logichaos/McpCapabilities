@@ -112,7 +112,7 @@ public class CapabilityFilteringFluentExtensionsTests
   }
 
   [Test]
-  public async Task FilterByClientCapabilities_NullClient_AllAnnotatedHidden()
+  public async Task FilterByClientCapabilities_NullClient_ShowsAllTools()
   {
     var tools = new List<Tool>
         {
@@ -123,8 +123,7 @@ public class CapabilityFilteringFluentExtensionsTests
     var result = tools.FilterByClientCapabilities(null);
 
     await Assert.That(result.IsSuccess).IsTrue();
-    await Assert.That(result.Value).Count().IsEqualTo(1);
-    await Assert.That(result.Value[0].Name).IsEqualTo("no_reqs_tool");
+    await Assert.That(result.Value).Count().IsEqualTo(2);
   }
 
   [Test]
@@ -171,7 +170,7 @@ public class CapabilityFilteringFluentExtensionsTests
   }
 
   [Test]
-  public async Task FilterByClientCapabilities_AllHiddenNullClient_FailsWithError()
+  public async Task FilterByClientCapabilities_NullClient_ShowsAllAnnotatedTools()
   {
     var tools = new List<Tool>
         {
@@ -181,10 +180,8 @@ public class CapabilityFilteringFluentExtensionsTests
 
     var result = tools.FilterByClientCapabilities(null);
 
-    await Assert.That(result.IsFailed).IsTrue();
-    var error = (CapabilityNotMetError)result.Errors[0];
-    await Assert.That(error.Missing).IsEqualTo(CapabilityFlag.Sampling | CapabilityFlag.Roots);
-    await Assert.That(error.PrimitiveName).IsEqualTo("tools/list");
+    await Assert.That(result.IsSuccess).IsTrue();
+    await Assert.That(result.Value).Count().IsEqualTo(2);
   }
 
   [Test]
@@ -272,7 +269,7 @@ public class CapabilityFilteringFluentExtensionsTests
   }
 
   [Test]
-  public async Task FilterByClientCapabilities_Prompts_NullClient_AllAnnotatedHidden()
+  public async Task FilterByClientCapabilities_Prompts_NullClient_ShowsAllPrompts()
   {
     var prompts = new List<Prompt>
         {
@@ -283,12 +280,11 @@ public class CapabilityFilteringFluentExtensionsTests
     var result = prompts.FilterByClientCapabilities(null);
 
     await Assert.That(result.IsSuccess).IsTrue();
-    await Assert.That(result.Value).Count().IsEqualTo(1);
-    await Assert.That(result.Value[0].Name).IsEqualTo("no_reqs_prompt");
+    await Assert.That(result.Value).Count().IsEqualTo(2);
   }
 
   [Test]
-  public async Task FilterByClientCapabilities_Prompts_NullClient_AllAnnotated_AllHidden_ReturnsFailure()
+  public async Task FilterByClientCapabilities_Prompts_NullClient_AllAnnotated_ShowsAll()
   {
     var prompts = new List<Prompt>
         {
@@ -297,10 +293,8 @@ public class CapabilityFilteringFluentExtensionsTests
 
     var result = prompts.FilterByClientCapabilities(null);
 
-    await Assert.That(result.IsFailed).IsTrue();
-    var error = (CapabilityNotMetError)result.Errors[0];
-    await Assert.That(error.PrimitiveName).IsEqualTo("prompts/list");
-    await Assert.That(error.Message).Contains("None of the 1 prompts");
+    await Assert.That(result.IsSuccess).IsTrue();
+    await Assert.That(result.Value).Count().IsEqualTo(1);
   }
 
   [Test]
@@ -390,7 +384,7 @@ public class CapabilityFilteringFluentExtensionsTests
   }
 
   [Test]
-  public async Task FilterByClientCapabilities_Resources_NullClient_AllAnnotatedHidden()
+  public async Task FilterByClientCapabilities_Resources_NullClient_ShowsAllResources()
   {
     var resources = new List<Resource>
         {
@@ -401,12 +395,11 @@ public class CapabilityFilteringFluentExtensionsTests
     var result = resources.FilterByClientCapabilities(null);
 
     await Assert.That(result.IsSuccess).IsTrue();
-    await Assert.That(result.Value).Count().IsEqualTo(1);
-    await Assert.That(result.Value[0].Name).IsEqualTo("no_reqs_resource");
+    await Assert.That(result.Value).Count().IsEqualTo(2);
   }
 
   [Test]
-  public async Task FilterByClientCapabilities_Resources_NullClient_AllAnnotated_AllHidden_ReturnsFailure()
+  public async Task FilterByClientCapabilities_Resources_NullClient_AllAnnotated_ShowsAll()
   {
     var resources = new List<Resource>
         {
@@ -415,10 +408,8 @@ public class CapabilityFilteringFluentExtensionsTests
 
     var result = resources.FilterByClientCapabilities(null);
 
-    await Assert.That(result.IsFailed).IsTrue();
-    var error = (CapabilityNotMetError)result.Errors[0];
-    await Assert.That(error.PrimitiveName).IsEqualTo("resources/list");
-    await Assert.That(error.Message).Contains("None of the 1 resources");
+    await Assert.That(result.IsSuccess).IsTrue();
+    await Assert.That(result.Value).Count().IsEqualTo(1);
   }
 
   private static JsonObject CreateMetaWithRequirements(CapabilityFlag flags)

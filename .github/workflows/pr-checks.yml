@@ -32,7 +32,6 @@ jobs:
             --coverage \
             --coverage-output-format cobertura \
             --report-trx
-#            --report-trx-filename test-results.trx
 
       - name: Generate Coverage Reports
         if: always()

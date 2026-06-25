@@ -19,6 +19,13 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Both"
       }
+    },
+    "caps-not-provided": {
+      "commandName": "Project",
+      "applicationUrl": "https://localhost:5000",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "CapsNotProvided"
+      }
     }
   }
 }

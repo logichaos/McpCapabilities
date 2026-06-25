@@ -15,16 +15,7 @@ public readonly record struct ClientCapabilityRequirements
   public string? Message { get; init; }
 
   public bool IsSatisfiedBy(ClientCapabilities? clientCaps)
-  {
-    if (Required == CapabilityFlag.None)
-      return true;
-
-    if (clientCaps is null)
-      return false;
-
-    var available = CapabilityFlags.FromClientCapabilities(clientCaps);
-    return (available & Required) == Required;
-  }
+      => CapabilityFlags.IsAllowed(Required, clientCaps);
 
   public void WriteToMeta(JsonObject meta)
   {

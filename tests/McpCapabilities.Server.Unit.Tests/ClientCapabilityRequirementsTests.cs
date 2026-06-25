@@ -153,12 +153,12 @@ public class ClientCapabilityRequirementsTests
   }
 
   [Test]
-  public async Task IsSatisfiedBy_NullCapabilities_ReturnsFalse()
+  public async Task IsSatisfiedBy_NullCapabilities_ReturnsTrue()
   {
     var reqs = new ClientCapabilityRequirements { Required = CapabilityFlag.Sampling };
 
     var result = reqs.IsSatisfiedBy(null);
 
-    await Assert.That(result).IsFalse();
+    await Assert.That(result).IsTrue();
   }
 }

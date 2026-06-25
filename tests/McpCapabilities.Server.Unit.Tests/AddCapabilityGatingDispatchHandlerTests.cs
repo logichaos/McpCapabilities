@@ -18,6 +18,10 @@ public class AddCapabilityGatingDispatchHandlerTests
   {
     [McpServerTool]
     public string SimpleTool(string input) => input;
+
+    [McpServerTool]
+    [RequiredClientCapabilities(Required = CapabilityFlag.Sampling)]
+    public string SamplingGatedTool() => "result";
   }
 
   [McpServerPromptType]
@@ -56,26 +60,32 @@ public class AddCapabilityGatingDispatchHandlerTests
     return (sp, options);
   }
 
-  private static RequestContext<CallToolRequestParams> CreateCallToolContext(
-      CallToolRequestParams parameters)
+private static RequestContext<CallToolRequestParams> CreateCallToolContext(
+      CallToolRequestParams parameters,
+      ClientCapabilities? clientCapabilities = null)
   {
     var server = A.Fake<McpServer>();
+    A.CallTo(() => server.ClientCapabilities).Returns(clientCapabilities);
     var request = new JsonRpcRequest { Method = "test" };
     return new RequestContext<CallToolRequestParams>(server, request, parameters);
   }
 
   private static RequestContext<GetPromptRequestParams> CreatePromptContext(
-      GetPromptRequestParams parameters)
+      GetPromptRequestParams parameters,
+      ClientCapabilities? clientCapabilities = null)
   {
     var server = A.Fake<McpServer>();
+    A.CallTo(() => server.ClientCapabilities).Returns(clientCapabilities);
     var request = new JsonRpcRequest { Method = "test" };
     return new RequestContext<GetPromptRequestParams>(server, request, parameters);
   }
 
   private static RequestContext<ReadResourceRequestParams> CreateResourceContext(
-      ReadResourceRequestParams parameters)
+      ReadResourceRequestParams parameters,
+      ClientCapabilities? clientCapabilities = null)
   {
     var server = A.Fake<McpServer>();
+    A.CallTo(() => server.ClientCapabilities).Returns(clientCapabilities);
     var request = new JsonRpcRequest { Method = "test" };
     return new RequestContext<ReadResourceRequestParams>(server, request, parameters);
   }
@@ -204,5 +214,58 @@ public class AddCapabilityGatingDispatchHandlerTests
     await Assert.That(result.Contents).IsNotNull();
     await Assert.That(result.Contents).Count().IsEqualTo(1);
     await Assert.That(result.Contents![0].Uri).IsEqualTo("resource://fallback");
+  }
+
+  [Test]
+  public async Task CallToolHandler_GatedTool_NoCapabilities_Blocked()
+  {
+    var (_, options) = BuildWithGating();
+
+    var context = CreateCallToolContext(
+        new CallToolRequestParams { Name = "sampling_gated_tool" },
+        clientCapabilities: null);
+
+    await Assert.That(async () =>
+    {
+      await options.Handlers.CallToolHandler!(context, default);
+    }).Throws<McpProtocolException>();
+  }
+
+  [Test]
+  public async Task CallToolHandler_GatedTool_RequiredCapabilityPresent_Allowed()
+  {
+    var (_, options) = BuildWithGating();
+
+    var context = CreateCallToolContext(
+        new CallToolRequestParams { Name = "sampling_gated_tool" },
+        clientCapabilities: new ClientCapabilities { Sampling = new SamplingCapability() });
+
+    var capabilityBlocked = false;
+    try
+    {
+      await options.Handlers.CallToolHandler!(context, default);
+    }
+    catch (McpProtocolException e) when (e.Message.StartsWith("Client missing"))
+    {
+      capabilityBlocked = true;
+    }
+    catch { /* tool invocation may fail with a fake server */ }
+
+    await Assert.That(capabilityBlocked).IsFalse();
+  }
+
+  [Test]
+  public async Task CallToolHandler_GatedTool_WrongCapabilityAdvertised_ThrowsMcpProtocolException()
+  {
+    var (_, options) = BuildWithGating();
+
+    var context = CreateCallToolContext(
+        new CallToolRequestParams { Name = "sampling_gated_tool" },
+        clientCapabilities: new ClientCapabilities { Roots = new RootsCapability() });
+
+    await Assert.That(async () =>
+    {
+      await options.Handlers.CallToolHandler!(context, default);
+    }).Throws<McpProtocolException>();
   }
 }
