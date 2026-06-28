@@ -1,5 +1,7 @@
 # McpCapabilities
 
+<p><strong>A library to expose only primitives to an MCP client according to its capabilities.</strong></p>
+
 **Capability-gating library for MCP servers.** Annotate your tools, prompts, and resources with `[RequiredClientCapabilities]` — the library automatically hides them from clients that don't advertise the required capabilities.
 
 ```mermaid
