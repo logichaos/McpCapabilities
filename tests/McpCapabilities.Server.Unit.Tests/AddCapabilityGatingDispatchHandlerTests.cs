@@ -268,4 +268,48 @@ private static RequestContext<CallToolRequestParams> CreateCallToolContext(
       await options.Handlers.CallToolHandler!(context, default);
     }).Throws<McpProtocolException>();
   }
+
+  [Test]
+  public async Task GetPromptHandler_UngatedPrompt_CapabilityCheckAllowed()
+  {
+    var (_, options) = BuildWithGating();
+    var context = CreatePromptContext(
+        new GetPromptRequestParams { Name = "simple_prompt" },
+        clientCapabilities: new ClientCapabilities());
+
+    var capabilityBlocked = false;
+    try
+    {
+      await options.Handlers.GetPromptHandler!(context, default);
+    }
+    catch (McpProtocolException e) when (e.Message.StartsWith("Client missing"))
+    {
+      capabilityBlocked = true;
+    }
+    catch { /* prompt resolution may fail with fake server */ }
+
+    await Assert.That(capabilityBlocked).IsFalse();
+  }
+
+  [Test]
+  public async Task ReadResourceHandler_UngatedResource_CapabilityCheckAllowed()
+  {
+    var (_, options) = BuildWithGating();
+    var context = CreateResourceContext(
+        new ReadResourceRequestParams { Uri = "resource://simple" },
+        clientCapabilities: new ClientCapabilities());
+
+    var capabilityBlocked = false;
+    try
+    {
+      await options.Handlers.ReadResourceHandler!(context, default);
+    }
+    catch (McpProtocolException e) when (e.Message.StartsWith("Client missing"))
+    {
+      capabilityBlocked = true;
+    }
+    catch { /* resource resolution may fail with fake server */ }
+
+    await Assert.That(capabilityBlocked).IsFalse();
+  }
 }

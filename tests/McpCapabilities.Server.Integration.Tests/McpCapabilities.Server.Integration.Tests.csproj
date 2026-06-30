@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <PackageReference Include="FluentResults" />
+    <PackageReference Include="FakeItEasy" />
     <PackageReference Include="ModelContextProtocol" />
     <PackageReference Include="TUnit.AspNetCore" />
   </ItemGroup>

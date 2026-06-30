@@ -1,4 +1,6 @@
 using System.Reflection;
+using Microsoft.Extensions.Logging;
+using McpCapabilities.Server;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -71,6 +73,135 @@ public class AddCapabilityGatingExtensionsTests
     var wrappedHandler = resolvedOptions.Handlers.ListToolsHandler;
     await Assert.That(wrappedHandler is not null).IsTrue();
     await Assert.That(!ReferenceEquals(wrappedHandler, existingHandler)).IsTrue();
+  }
+
+  // --- Startup registration logging ---
+
+  [McpServerToolType]
+  private sealed class LoggedTestTools
+  {
+    [McpServerTool]
+    [RequiredClientCapabilities(Required = CapabilityFlag.Sampling)]
+    public string GatedTool() => "result";
+
+    [McpServerTool]
+    public string FreeTool() => "free";
+  }
+
+  [Test]
+  public async Task AddCapabilityGating_WithTools_LogsRequiredCapabilities()
+  {
+    var captured = new List<(LogLevel Level, string Message)>();
+    using var loggerFactory = new LoggerFactory([new CapturingLoggerProvider(captured)]);
+
+    var services = new ServiceCollection();
+    services.AddOptions();
+    services.AddLogging();
+    services.AddSingleton<ILoggerFactory>(loggerFactory);
+    services.Configure<McpServerOptions>(opt =>
+    {
+      opt.Handlers = new McpServerHandlers();
+    });
+
+    services.AddMcpServer()
+        .WithTools<LoggedTestTools>()
+        .AddCapabilityGating();
+
+    _ = services.BuildServiceProvider().GetRequiredService<IOptions<McpServerOptions>>().Value;
+
+    var registrationLogs = captured.Where(c => c.Message.Contains("requires")).ToList();
+    await Assert.That(registrationLogs).Count().IsEqualTo(1);
+    await Assert.That(registrationLogs[0].Level).IsEqualTo(LogLevel.Information);
+    await Assert.That(registrationLogs[0].Message).Contains("gated_tool");
+    await Assert.That(registrationLogs[0].Message).Contains("Sampling");
+  }
+
+
+  [McpServerPromptType]
+  private sealed class LoggedTestPrompts
+  {
+    [McpServerPrompt]
+    [RequiredClientCapabilities(Required = CapabilityFlag.Elicitation)]
+    public string GatedPrompt() => "result";
+
+    [McpServerPrompt]
+    public string FreePrompt() => "free";
+  }
+
+  [McpServerResourceType]
+  private sealed class LoggedTestResources
+  {
+    [McpServerResource]
+    [RequiredClientCapabilities(Required = CapabilityFlag.Roots)]
+    public string GatedResource() => "result";
+
+    [McpServerResource]
+    public string FreeResource() => "free";
+  }
+
+  [Test]
+  public async Task AddCapabilityGating_WithPrompts_LogsRequiredCapabilities()
+  {
+    var captured = new List<(LogLevel Level, string Message)>();
+    using var loggerFactory = new LoggerFactory([new CapturingLoggerProvider(captured)]);
+
+    var services = new ServiceCollection();
+    services.AddOptions();
+    services.AddLogging();
+    services.AddSingleton<ILoggerFactory>(loggerFactory);
+    services.Configure<McpServerOptions>(opt => opt.Handlers = new McpServerHandlers());
+
+    services.AddMcpServer()
+        .WithPrompts<LoggedTestPrompts>()
+        .AddCapabilityGating();
+
+    _ = services.BuildServiceProvider().GetRequiredService<IOptions<McpServerOptions>>().Value;
+
+    var registrationLogs = captured.Where(c => c.Message.Contains("requires")).ToList();
+    await Assert.That(registrationLogs).Count().IsEqualTo(1);
+    await Assert.That(registrationLogs[0].Level).IsEqualTo(LogLevel.Information);
+    await Assert.That(registrationLogs[0].Message).Contains("gated_prompt");
+    await Assert.That(registrationLogs[0].Message).Contains("Elicitation");
+  }
+
+  [Test]
+  public async Task AddCapabilityGating_WithResources_LogsRequiredCapabilities()
+  {
+    var captured = new List<(LogLevel Level, string Message)>();
+    using var loggerFactory = new LoggerFactory([new CapturingLoggerProvider(captured)]);
+
+    var services = new ServiceCollection();
+    services.AddOptions();
+    services.AddLogging();
+    services.AddSingleton<ILoggerFactory>(loggerFactory);
+    services.Configure<McpServerOptions>(opt => opt.Handlers = new McpServerHandlers());
+
+    services.AddMcpServer()
+        .WithResources<LoggedTestResources>()
+        .AddCapabilityGating();
+
+    _ = services.BuildServiceProvider().GetRequiredService<IOptions<McpServerOptions>>().Value;
+
+    var registrationLogs = captured.Where(c => c.Message.Contains("requires")).ToList();
+    await Assert.That(registrationLogs).Count().IsEqualTo(1);
+    await Assert.That(registrationLogs[0].Level).IsEqualTo(LogLevel.Information);
+    await Assert.That(registrationLogs[0].Message).Contains("gated_resource");
+    await Assert.That(registrationLogs[0].Message).Contains("Roots");
+  }
+  private sealed class CapturingLoggerProvider(List<(LogLevel Level, string Message)> captured) : ILoggerProvider
+  {
+    public ILogger CreateLogger(string categoryName) => new CapturingLogger(captured);
+    public void Dispose() { }
+  }
+
+  private sealed class CapturingLogger(List<(LogLevel Level, string Message)> captured) : ILogger
+  {
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+    public bool IsEnabled(LogLevel logLevel) => true;
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+    {
+      captured.Add((logLevel, formatter(state, exception)));
+    }
   }
 }
 
