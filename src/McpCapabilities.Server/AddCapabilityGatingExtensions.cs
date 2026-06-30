@@ -1,4 +1,6 @@
 using McpCapabilities.Server;
+using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -37,7 +39,8 @@ public static class AddCapabilityGatingExtensions
 
     builder.Services.AddSingleton<IConfigureOptions<McpServerOptions>>(sp =>
         new CapabilityGatingConfigureOptions(
-            sp.GetRequiredService<IOptions<CapabilityGatingOptions>>()));
+            sp.GetRequiredService<IOptions<CapabilityGatingOptions>>(),
+            sp.GetService<ILoggerFactory>()));
 
     return builder;
   }
@@ -45,10 +48,22 @@ public static class AddCapabilityGatingExtensions
   private sealed class CapabilityGatingConfigureOptions : IConfigureOptions<McpServerOptions>
   {
     private readonly CapabilityGatingOptions _gatingOptions;
+    private readonly ILogger? _listToolsLogger;
+    private readonly ILogger? _listPromptsLogger;
+    private readonly ILogger? _listResourcesLogger;
+    private readonly ILogger? _dispatchLogger;
+    private readonly ILogger? _registrationLogger;
 
-    public CapabilityGatingConfigureOptions(IOptions<CapabilityGatingOptions> options)
+    public CapabilityGatingConfigureOptions(
+        IOptions<CapabilityGatingOptions> options,
+        ILoggerFactory? loggerFactory = null)
     {
       _gatingOptions = options.Value;
+      _listToolsLogger = loggerFactory?.CreateLogger("McpCapabilities.ListTools");
+      _listPromptsLogger = loggerFactory?.CreateLogger("McpCapabilities.ListPrompts");
+      _listResourcesLogger = loggerFactory?.CreateLogger("McpCapabilities.ListResources");
+      _dispatchLogger = loggerFactory?.CreateLogger("McpCapabilities.Dispatch");
+      _registrationLogger = loggerFactory?.CreateLogger("McpCapabilities.Registration");
     }
 
     public void Configure(McpServerOptions options)
@@ -66,11 +81,11 @@ public static class AddCapabilityGatingExtensions
         foreach (var tool in options.ToolCollection)
         {
           tool.CaptureCapabilityRequirements();
-          if (_gatingOptions.OnToolRequirements is { } onTool)
+          var reqs = tool.GetCapabilityRequirements();
+          if (reqs.Required != CapabilityFlag.None)
           {
-            var reqs = tool.GetCapabilityRequirements();
-            if (reqs.Required != CapabilityFlag.None)
-              onTool(tool, reqs);
+            _registrationLogger?.LogInformation("Tool '{ToolName}' requires {Flags}", tool.ProtocolTool.Name, reqs.Required);
+            _gatingOptions.OnToolRequirements?.Invoke(tool, reqs);
           }
         }
       }
@@ -80,11 +95,11 @@ public static class AddCapabilityGatingExtensions
         foreach (var prompt in options.PromptCollection)
         {
           prompt.CaptureCapabilityRequirements();
-          if (_gatingOptions.OnPromptRequirements is { } onPrompt)
+          var reqs = prompt.GetCapabilityRequirements();
+          if (reqs.Required != CapabilityFlag.None)
           {
-            var reqs = prompt.GetCapabilityRequirements();
-            if (reqs.Required != CapabilityFlag.None)
-              onPrompt(prompt, reqs);
+            _registrationLogger?.LogInformation("Prompt '{PromptName}' requires {Flags}", prompt.ProtocolPrompt.Name, reqs.Required);
+            _gatingOptions.OnPromptRequirements?.Invoke(prompt, reqs);
           }
         }
       }
@@ -94,11 +109,11 @@ public static class AddCapabilityGatingExtensions
         foreach (var resource in options.ResourceCollection)
         {
           resource.CaptureCapabilityRequirements();
-          if (_gatingOptions.OnResourceRequirements is { } onResource)
+          var reqs = resource.GetCapabilityRequirements();
+          if (reqs.Required != CapabilityFlag.None)
           {
-            var reqs = resource.GetCapabilityRequirements();
-            if (reqs.Required != CapabilityFlag.None)
-              onResource(resource, reqs);
+            _registrationLogger?.LogInformation("Resource '{ResourceName}' requires {Flags}", resource.ProtocolResource?.Name ?? resource.ProtocolResource?.Uri ?? "", reqs.Required);
+            _gatingOptions.OnResourceRequirements?.Invoke(resource, reqs);
           }
         }
       }
@@ -135,21 +150,24 @@ public static class AddCapabilityGatingExtensions
               ? CombineHandlers(listToolsInner, existingListTools)
               : listToolsInner,
           GetClientCaps,
-          allow);
+          allow,
+          logger: _listToolsLogger);
 
       options.Handlers.ListPromptsHandler = CapabilityFilteringHandlers.WrapListPrompts(
           existingListPrompts is not null
               ? CombineHandlers(listPromptsInner, existingListPrompts)
               : listPromptsInner,
           GetClientCaps,
-          allow);
+          allow,
+          logger: _listPromptsLogger);
 
       options.Handlers.ListResourcesHandler = CapabilityFilteringHandlers.WrapListResources(
           existingListResources is not null
               ? CombineHandlers(listResourcesInner, existingListResources)
               : listResourcesInner,
           GetClientCaps,
-          allow);
+          allow,
+          logger: _listResourcesLogger);
     }
 
     private void BuildDispatchHandlers(McpServerOptions options)
@@ -168,15 +186,29 @@ public static class AddCapabilityGatingExtensions
         if (request.Params?.Name is { } toolName &&
             toolLookup.TryGetValue(toolName, out var serverTool))
         {
+          using var activity = McpCapabilitiesTelemetry.Source.StartActivity("dispatch tools/call");
+          activity?.SetTag(McpCapabilitiesTelemetry.Tags.PrimitiveType, "tool");
+          activity?.SetTag(McpCapabilitiesTelemetry.Tags.PrimitiveName, toolName);
+
           var clientCaps = request.Server?.ClientCapabilities;
+          var clientFlags = CapabilityFlags.FromClientCapabilities(clientCaps);
           var reqs = serverTool.GetCapabilityRequirements();
+          activity?.SetTag(McpCapabilitiesTelemetry.Tags.ClientFlags, clientFlags.ToString());
+          activity?.SetTag(McpCapabilitiesTelemetry.Tags.RequiredFlags, reqs.Required.ToString());
+
           if (!CapabilityFlags.IsAllowed(reqs.Required, clientCaps, allow))
           {
-            var missing = reqs.Required & ~CapabilityFlags.FromClientCapabilities(clientCaps);
+            var missing = reqs.Required & ~clientFlags;
+            activity?.SetTag(McpCapabilitiesTelemetry.Tags.MissingFlags, missing.ToString());
+            activity?.SetTag(McpCapabilitiesTelemetry.Tags.Allowed, false);
+            _dispatchLogger?.LogWarning("Tool '{ToolName}' denied (requires {Required}, client missing {Missing})", toolName, reqs.Required, missing);
             throw new McpProtocolException(
                 reqs.Message ?? $"Client missing capabilities to call '{toolName}': {missing}",
                 McpErrorCode.InvalidRequest);
           }
+          activity?.SetTag(McpCapabilitiesTelemetry.Tags.Allowed, true);
+          if (reqs.Required != CapabilityFlag.None)
+            _dispatchLogger?.LogDebug("Tool '{ToolName}' allowed (requires {Required}, client has {ClientFlags})", toolName, reqs.Required, clientFlags);
           return await serverTool.InvokeAsync(request, ct);
         }
 
@@ -196,15 +228,29 @@ public static class AddCapabilityGatingExtensions
         if (request.Params?.Name is { } promptName &&
             promptLookup.TryGetValue(promptName, out var serverPrompt))
         {
+          using var activity = McpCapabilitiesTelemetry.Source.StartActivity("dispatch prompts/get");
+          activity?.SetTag(McpCapabilitiesTelemetry.Tags.PrimitiveType, "prompt");
+          activity?.SetTag(McpCapabilitiesTelemetry.Tags.PrimitiveName, promptName);
+
           var clientCaps = request.Server?.ClientCapabilities;
+          var clientFlags = CapabilityFlags.FromClientCapabilities(clientCaps);
           var reqs = serverPrompt.GetCapabilityRequirements();
+          activity?.SetTag(McpCapabilitiesTelemetry.Tags.ClientFlags, clientFlags.ToString());
+          activity?.SetTag(McpCapabilitiesTelemetry.Tags.RequiredFlags, reqs.Required.ToString());
+
           if (!CapabilityFlags.IsAllowed(reqs.Required, clientCaps, allow))
           {
-            var missing = reqs.Required & ~CapabilityFlags.FromClientCapabilities(clientCaps);
+            var missing = reqs.Required & ~clientFlags;
+            activity?.SetTag(McpCapabilitiesTelemetry.Tags.MissingFlags, missing.ToString());
+            activity?.SetTag(McpCapabilitiesTelemetry.Tags.Allowed, false);
+            _dispatchLogger?.LogWarning("Prompt '{PromptName}' denied (requires {Required}, client missing {Missing})", promptName, reqs.Required, missing);
             throw new McpProtocolException(
                 reqs.Message ?? $"Client missing capabilities to get '{promptName}': {missing}",
                 McpErrorCode.InvalidRequest);
           }
+          activity?.SetTag(McpCapabilitiesTelemetry.Tags.Allowed, true);
+          if (reqs.Required != CapabilityFlag.None)
+            _dispatchLogger?.LogDebug("Prompt '{PromptName}' allowed (requires {Required}, client has {ClientFlags})", promptName, reqs.Required, clientFlags);
           return await serverPrompt.GetAsync(request, ct);
         }
 
@@ -224,15 +270,29 @@ public static class AddCapabilityGatingExtensions
         if (request.Params?.Uri is { } uri &&
             resourceLookup.TryGetValue(uri, out var serverResource))
         {
+          using var activity = McpCapabilitiesTelemetry.Source.StartActivity("dispatch resources/read");
+          activity?.SetTag(McpCapabilitiesTelemetry.Tags.PrimitiveType, "resource");
+          activity?.SetTag(McpCapabilitiesTelemetry.Tags.PrimitiveName, uri);
+
           var clientCaps = request.Server?.ClientCapabilities;
+          var clientFlags = CapabilityFlags.FromClientCapabilities(clientCaps);
           var reqs = serverResource.GetCapabilityRequirements();
+          activity?.SetTag(McpCapabilitiesTelemetry.Tags.ClientFlags, clientFlags.ToString());
+          activity?.SetTag(McpCapabilitiesTelemetry.Tags.RequiredFlags, reqs.Required.ToString());
+
           if (!CapabilityFlags.IsAllowed(reqs.Required, clientCaps, allow))
           {
-            var missing = reqs.Required & ~CapabilityFlags.FromClientCapabilities(clientCaps);
+            var missing = reqs.Required & ~clientFlags;
+            activity?.SetTag(McpCapabilitiesTelemetry.Tags.MissingFlags, missing.ToString());
+            activity?.SetTag(McpCapabilitiesTelemetry.Tags.Allowed, false);
+            _dispatchLogger?.LogWarning("Resource '{ResourceUri}' denied (requires {Required}, client missing {Missing})", uri, reqs.Required, missing);
             throw new McpProtocolException(
                 reqs.Message ?? $"Client missing capabilities to read '{uri}': {missing}",
                 McpErrorCode.InvalidRequest);
           }
+          activity?.SetTag(McpCapabilitiesTelemetry.Tags.Allowed, true);
+          if (reqs.Required != CapabilityFlag.None)
+            _dispatchLogger?.LogDebug("Resource '{ResourceUri}' allowed (requires {Required}, client has {ClientFlags})", uri, reqs.Required, clientFlags);
           return await serverResource.ReadAsync(request, ct);
         }
 

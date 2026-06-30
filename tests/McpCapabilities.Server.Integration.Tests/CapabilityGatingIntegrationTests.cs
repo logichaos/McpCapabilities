@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using FakeItEasy;
 
 using McpCapabilities.Server;
 
@@ -106,5 +107,68 @@ public class CapabilityGatingIntegrationTests
     var meta = new JsonObject();
     new ClientCapabilityRequirements { Required = flags }.WriteToMeta(meta);
     return meta;
+  }
+
+  [Test]
+  public async Task ListToolsHandler_Invoked_CoversGetClientCaps()
+  {
+    var services = new ServiceCollection();
+    services.AddOptions();
+    services.Configure<McpServerOptions>(opt =>
+    {
+      opt.Handlers = new McpServerHandlers();
+      opt.ServerInfo = new Implementation { Name = "Test", Version = "1.0" };
+    });
+
+    services.AddMcpServer()
+        .WithTools<AnnotatedTools>()
+        .AddCapabilityGating();
+
+    var sp = services.BuildServiceProvider();
+    var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
+
+    var server = A.Fake<McpServer>();
+    A.CallTo(() => server.ClientCapabilities).Returns(new ClientCapabilities { Sampling = new SamplingCapability() });
+    var context = new RequestContext<ListToolsRequestParams>(server, new JsonRpcRequest { Method = "tools/list" }, new ListToolsRequestParams());
+
+    var result = await options.Handlers.ListToolsHandler!(context, default);
+    await Assert.That(result.Tools).Count().IsEqualTo(2);
+  }
+
+  [Test]
+  public async Task ListToolsHandler_WithExistingHandler_CoversCombineHandlers()
+  {
+    var existingTools = new McpRequestHandler<ListToolsRequestParams, ListToolsResult>(
+        (_, _) => ValueTask.FromResult(new ListToolsResult
+        {
+          Tools = [new Tool { Name = "external_tool" }],
+        }));
+
+    var services = new ServiceCollection();
+    services.AddOptions();
+    services.Configure<McpServerOptions>(opt =>
+    {
+      opt.Handlers = new McpServerHandlers { ListToolsHandler = existingTools };
+      opt.ServerInfo = new Implementation { Name = "Test", Version = "1.0" };
+    });
+
+    services.AddMcpServer()
+        .WithTools<AnnotatedTools>()
+        .AddCapabilityGating();
+
+    var sp = services.BuildServiceProvider();
+    var options = sp.GetRequiredService<IOptions<McpServerOptions>>().Value;
+
+    var server = A.Fake<McpServer>();
+    A.CallTo(() => server.ClientCapabilities).Returns(new ClientCapabilities { Sampling = new SamplingCapability(), Elicitation = new ElicitationCapability() });
+    var context = new RequestContext<ListToolsRequestParams>(server, new JsonRpcRequest { Method = "tools/list" }, new ListToolsRequestParams());
+
+    var result = await options.Handlers.ListToolsHandler!(context, default);
+    var names = result.Tools.Select(t => t.Name).ToList();
+    await Assert.That(names).Contains("external_tool");
+    await Assert.That(names).Contains("tool_requiring_sampling");
+    await Assert.That(names).Contains("tool_requiring_elicitation");
+    await Assert.That(names).Contains("tool_no_requirements");
+    await Assert.That(names).Count().IsEqualTo(4);
   }
 }

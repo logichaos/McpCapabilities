@@ -33,13 +33,21 @@ jobs:
             --coverage-output-format cobertura \
             --report-trx
 
+      - name: Merge coverage files
+        if: always()
+        run: |
+          dotnet tool install -g dotnet-coverage
+          dotnet-coverage merge artifacts/TestResults/*.cobertura.xml \
+            -o artifacts/merged.cobertura.xml \
+            -f cobertura
+
       - name: Generate Coverage Reports
         if: always()
         run: |
           dotnet tool install -g dotnet-reportgenerator-globaltool
-          
+
           reportgenerator \
-            -reports:"artifacts/TestResults/*.cobertura.xml" \
+            -reports:"artifacts/merged.cobertura.xml" \
             -targetdir:"artifacts/coverage_report" \
             -reporttypes:"MarkdownSummary;Cobertura" \
             -assemblyfilters:"-*SampleMcp*;-*BlazorClient*" \
